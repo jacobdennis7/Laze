@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+
+# Personal calendar data — never commit
+src/data/events.local.js
+
+# Local credentials
+.env
+.env.local
+.env.*.local
+.claude/

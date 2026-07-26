@@ -1,0 +1,13 @@
+{
+  "name": "Laze",
+  "short_name": "Laze",
+  "description": "Your meetings on a map — travel times, conflicts, and smart scheduling replies.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#1c1e21",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
