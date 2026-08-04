@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { CAFES } from '../data/events.js';
-import { parseMessage, rankWindows, nearestCafe, proposeStart, fmtSlotTime, buildDraft } from '../lib/suggest.js';
+import { getPlaces } from '../lib/prefs.js';
+import {
+  parseMessage, rankWindows, nearestCafe, proposeStart, fmtSlotTime, buildDraft,
+  detectBookingLink, tryReadBookingLink, parseTheirSlots, matchTheirSlots,
+} from '../lib/suggest.js';
 import { fmtDayLong } from '../lib/time.js';
+
+const CAT_ICON = { coffee: '☕', lunch: '🍽', dinner: '🌙' };
 
 const DUR = [30, 45, 60, 90];
 const WD_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -17,6 +23,19 @@ export default function SuggestModal({ range, onClose }) {
   const [selected, setSelected] = useState([]);
   const [copied, setCopied] = useState(false);
   const [draftOverride, setDraftOverride] = useState(null);
+  const [favId, setFavId] = useState(null); // chosen favorite spot, else nearest café
+  const [bookState, setBookState] = useState(null); // null | 'checking' | {reason} | 'paste'
+  const [theirText, setTheirText] = useState('');
+  const favorites = getPlaces().favorites;
+
+  const booking = useMemo(() => detectBookingLink(msg), [msg]);
+
+  async function checkBooking() {
+    setBookState('checking');
+    await tryReadBookingLink(booking.url);
+    // No CORS-free path exists today — go straight to the paste flow with an honest note.
+    setBookState('paste');
+  }
 
   const hints = useMemo(() => (msg.trim() ? parseMessage(msg) : null), [msg]);
 
@@ -33,6 +52,13 @@ export default function SuggestModal({ range, onClose }) {
     () => rankWindows({ start: range.start, end: range.end, them, durationMin: duration, hints }),
     [range, them, duration, hints]
   );
+
+  const theirMatches = useMemo(() => {
+    if (!theirText.trim()) return null;
+    const theirs = parseTheirSlots(theirText);
+    if (!theirs.length) return [];
+    return matchTheirSlots({ theirs, start: range.start, end: range.end, durationMin: duration, them });
+  }, [theirText, range, duration, them]);
 
   const slots = useMemo(
     () =>
@@ -52,7 +78,11 @@ export default function SuggestModal({ range, onClose }) {
     [windows, duration]
   );
 
-  const cafe = useMemo(() => nearestCafe(them, them && them.lat > 39 ? 'NYC' : 'SF'), [them]);
+  const chosenFav = favorites.find((f) => f.id === favId) || null;
+  const cafe = useMemo(
+    () => chosenFav || nearestCafe(them, them && them.lat > 39 ? 'NYC' : 'SF'),
+    [them, chosenFav]
+  );
 
   const chosen = slots.filter((s) => selected.includes(s.id));
   const draft = draftOverride ?? buildDraft({ tone, slots: chosen.length ? chosen : slots.slice(0, 3), them, cafe, missedAsk });
@@ -156,6 +186,61 @@ export default function SuggestModal({ range, onClose }) {
                   ))}
                 </div>
               </div>
+
+              {favorites.length > 0 && (
+                <div className="field">
+                  <label>Suggest one of your spots</label>
+                  <div className="fav-chips">
+                    <button className={`fav-chip${!favId ? ' on' : ''}`} onClick={() => { setFavId(null); setDraftOverride(null); }}>
+                      Nearest café
+                    </button>
+                    {favorites.map((f) => (
+                      <button key={f.id} className={`fav-chip${favId === f.id ? ' on' : ''}`} onClick={() => { setFavId(f.id === favId ? null : f.id); setDraftOverride(null); }}>
+                        {CAT_ICON[f.category]} {f.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {booking && (
+                <div className="field booking-box">
+                  <label>Booking link detected — {booking.provider}</label>
+                  {bookState === null && (
+                    <button className="pill-btn" onClick={checkBooking}>Cross-reference their availability</button>
+                  )}
+                  {bookState === 'checking' && <div className="book-note">Trying to read their page…</div>}
+                  {bookState === 'paste' && (
+                    <>
+                      <div className="book-note">
+                        Their site blocks cross-site reads from a browser, so: open{' '}
+                        <a href={booking.url} target="_blank" rel="noreferrer">their booking page ↗</a>, copy the
+                        visible days &amp; times, and paste below. Laze intersects them with your real calendar.
+                      </div>
+                      <textarea
+                        value={theirText}
+                        onChange={(e) => setTheirText(e.target.value)}
+                        placeholder={'Monday, August 10\n9:00am  9:30am  1:00pm\nTuesday, August 11\n2:00pm  4:30pm'}
+                        style={{ minHeight: 80, marginTop: 8 }}
+                      />
+                      {theirMatches && (
+                        <div className="book-matches">
+                          {theirMatches.length === 0 && <div className="book-note">No overlap with your free windows in this range — try other days on their page.</div>}
+                          {theirMatches.slice(0, 4).map((m, i) => (
+                            <div className="book-match" key={i}>
+                              <span>
+                                ✓ <b>{fmtDayLong(m.day)}, {fmtSlotTime(m.ms, m.offset)}</b>
+                                <span className="why"> — fits {m.window.beforeSoft && m.window.afterSoft ? 'a fully open stretch' : `between ${m.window.before?.title || 'your morning'} and ${m.window.after?.title || 'your evening'}`}</span>
+                              </span>
+                              <a className="pill-btn" href={booking.url} target="_blank" rel="noreferrer">Book ↗</a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="modal-col">

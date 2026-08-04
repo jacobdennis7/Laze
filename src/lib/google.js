@@ -178,7 +178,7 @@ function loadGeoCache() {
   return geoCache;
 }
 
-async function geocode(locText) {
+export async function geocode(locText) {
   const cache = loadGeoCache();
   const key = locText.toLowerCase().slice(0, 120);
   if (key in cache) return cache[key];

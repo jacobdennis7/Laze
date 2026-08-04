@@ -5,6 +5,8 @@ import { findConflicts, dayLegs } from './lib/schedule.js';
 import { subscribe, getState, loadSettings, saveSettings, setSyncing, setLiveEvents, setSyncError } from './lib/store.js';
 import { fetchRange, isConnected, connect, listCalendars } from './lib/google.js';
 import { warmLegs, subscribeRoutes, routesVersion } from './lib/routes.js';
+import { subscribePrefs, prefsVersion } from './lib/prefs.js';
+import SpotSuggestModal from './components/SpotSuggestModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
 import MapView from './components/MapView.jsx';
 import DayPanel from './components/DayPanel.jsx';
@@ -27,11 +29,13 @@ export default function App() {
 
   const store = useSyncExternalStore(subscribe, getState);
   const rVersion = useSyncExternalStore(subscribeRoutes, routesVersion);
+  const pVersion = useSyncExternalStore(subscribePrefs, prefsVersion);
+  const [spotSuggest, setSpotSuggest] = useState(null);
 
   const days = useMemo(() => eachDay(range.start, range.end), [range]);
   // store.version / rVersion are re-computation triggers, not read directly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const conflicts = useMemo(() => findConflicts(range.start, range.end, mode), [range, mode, store.version, rVersion]);
+  const conflicts = useMemo(() => findConflicts(range.start, range.end, mode), [range, mode, store.version, rVersion, pVersion]);
 
   // Warm live drive times for the visible days whenever a Maps key is set.
   useEffect(() => {
@@ -151,7 +155,7 @@ export default function App() {
         {view === 'map' ? (
           <>
             <div className="map-pane">
-              <MapView day={activeDay} mode={mode} dataVersion={`${store.version}.${rVersion}`} />
+              <MapView day={activeDay} mode={mode} dataVersion={`${store.version}.${rVersion}.${pVersion}`} onSpotSuggest={setSpotSuggest} />
               <div className="day-chips" role="tablist" aria-label="Day">
                 {days.map((d, i) => (
                   <button key={d} className={d === activeDay ? 'on' : ''} onClick={() => setActiveDay(d)} role="tab" aria-selected={d === activeDay}>
@@ -189,6 +193,7 @@ export default function App() {
       {showSuggest && <SuggestModal range={range} onClose={() => setShowSuggest(false)} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSync={(s) => { setShowSettings(false); doSync(s); }} />}
       {selectedEvent && <EventModal ev={selectedEvent} onClose={() => setSelectedEvent(null)} />}
+      {spotSuggest && <SpotSuggestModal spot={spotSuggest} day={activeDay} onClose={() => setSpotSuggest(null)} />}
     </div>
   );
 }

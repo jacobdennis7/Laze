@@ -2,6 +2,90 @@ import React, { useState } from 'react';
 import { loadSettings, saveSettings, getState, resetToSnapshot } from '../lib/store.js';
 import { connect, listCalendars, isConnected } from '../lib/google.js';
 import { testRoutesKey } from '../lib/routes.js';
+import { getPlaces, setBasePlace, setVirtualDefault, addFavorite, removeFavorite } from '../lib/prefs.js';
+
+function BaseField({ kind, label, placeholder }) {
+  const places = getPlaces();
+  const cur = places[kind];
+  const [addr, setAddr] = useState(cur ? cur.address : '');
+  const [state, setState] = useState(cur ? 'ok' : 'idle');
+  const [, force] = useState(0);
+
+  async function save() {
+    setState('loading');
+    try {
+      await setBasePlace(kind, addr);
+      setState(addr.trim() ? 'ok' : 'idle');
+      force((n) => n + 1);
+    } catch {
+      setState('miss');
+    }
+  }
+
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <div className="field-row" style={{ alignItems: 'center' }}>
+        <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder={placeholder} style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && save()} />
+        <button className="pill-btn" onClick={save} disabled={state === 'loading'}>
+          {state === 'loading' ? '…' : state === 'ok' ? 'Saved ✓' : state === 'miss' ? 'Not found' : 'Save'}
+        </button>
+      </div>
+      {cur && state === 'ok' && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>{cur.name} · {cur.hood}</div>}
+    </div>
+  );
+}
+
+const CATS = [
+  ['coffee', '☕ Coffee'],
+  ['lunch', '🍽 Lunch'],
+  ['dinner', '🌙 Dinner'],
+];
+
+function FavoritesEditor() {
+  const [, force] = useState(0);
+  const [name, setName] = useState('');
+  const [addr, setAddr] = useState('');
+  const [cat, setCat] = useState('coffee');
+  const [state, setState] = useState('idle');
+  const favs = getPlaces().favorites;
+
+  async function add() {
+    if (!addr.trim()) return;
+    setState('loading');
+    try {
+      await addFavorite({ name, address: addr, category: cat });
+      setName(''); setAddr(''); setState('idle');
+      force((n) => n + 1);
+    } catch {
+      setState('miss');
+    }
+  }
+
+  return (
+    <div className="field">
+      <label>Favorite spots — offered first in Suggest</label>
+      {favs.map((f) => (
+        <div className="fav-row" key={f.id}>
+          <span>{CATS.find(([c]) => c === f.category)?.[1].split(' ')[0]} <b>{f.name}</b> <span style={{ color: 'var(--muted)' }}>· {f.hood}</span></span>
+          <button className="x-btn" onClick={() => { removeFavorite(f.id); force((n) => n + 1); }} aria-label={`Remove ${f.name}`}>✕</button>
+        </div>
+      ))}
+      <div className="field-row" style={{ marginTop: 6 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" style={{ flex: 1 }} />
+        <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ width: 110 }}>
+          {CATS.map(([c, l]) => <option key={c} value={c}>{l}</option>)}
+        </select>
+      </div>
+      <div className="field-row" style={{ marginTop: 6, alignItems: 'center' }}>
+        <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button className="pill-btn" onClick={add} disabled={state === 'loading'}>
+          {state === 'loading' ? '…' : state === 'miss' ? 'Not found' : '＋ Add'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsModal({ onClose, onSync }) {
   const [s, setS] = useState(loadSettings);
@@ -85,6 +169,23 @@ export default function SettingsModal({ onClose, onSync }) {
                 </div>
               )}
             </div>
+            <div style={{ borderTop: '1px solid var(--hairline)', margin: '4px 0 14px', paddingTop: 14 }}>
+              <BaseField kind="home" label="Home base — routing anchor + where virtual calls default" placeholder="905 California St, San Francisco" />
+              <BaseField kind="office" label="Office" placeholder="Your office address" />
+              <div className="field">
+                <label>Show virtual meetings on the map by default at</label>
+                <select
+                  defaultValue={getPlaces().virtualDefault}
+                  onChange={(e) => setVirtualDefault(e.target.value)}
+                >
+                  <option value="none">Don't place them (per-event only)</option>
+                  <option value="home" disabled={!getPlaces().home}>Home</option>
+                  <option value="office" disabled={!getPlaces().office}>Office</option>
+                </select>
+              </div>
+              <FavoritesEditor />
+            </div>
+
             <div className="field">
               <label>Display timezone for synced events</label>
               <select value={s.tz} onChange={(e) => upd({ tz: e.target.value })}>

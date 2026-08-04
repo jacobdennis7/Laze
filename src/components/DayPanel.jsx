@@ -1,8 +1,50 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
-import { eventsForDay, dayLegs, routableStops, lodgingFor } from '../lib/schedule.js';
-import { venueOf, gmapsRoute, gmapsDir, gmapsPlace, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
+import { eventsForDay, dayLegs, routableStops, lodgingFor, effectiveVenue } from '../lib/schedule.js';
+import { gmapsRoute, gmapsDir, gmapsPlace, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
+import { getPlaces, getPlacement, setPlacement, setPlacementOther } from '../lib/prefs.js';
 import { fmtTime, fmtDayLong, toEpoch } from '../lib/time.js';
+
+// Dropdown on virtual cards: where is this call being taken from?
+function PlacementPicker({ ev }) {
+  const places = getPlaces();
+  const pl = getPlacement(ev.id);
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [addr, setAddr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const value = pl ? pl.type : 'default';
+
+  async function change(v) {
+    if (v === 'other') { setOtherOpen(true); return; }
+    setOtherOpen(false);
+    setPlacement(ev.id, v === 'default' ? null : { type: v });
+  }
+
+  async function saveOther() {
+    if (!addr.trim()) return;
+    setBusy(true);
+    try { await setPlacementOther(ev.id, addr); setOtherOpen(false); } catch { /* keep open */ }
+    setBusy(false);
+  }
+
+  return (
+    <div className="placement" onClick={(e) => e.stopPropagation()}>
+      <select value={value} onChange={(e) => change(e.target.value)} aria-label="Taken from">
+        <option value="default">Taken from: default</option>
+        <option value="home" disabled={!places.home}>Home{places.home ? '' : ' (set in Connections)'}</option>
+        <option value="office" disabled={!places.office}>Office{places.office ? '' : ' (set in Connections)'}</option>
+        <option value="other">Other address…</option>
+        <option value="none">Don't place on map</option>
+      </select>
+      {otherOpen && (
+        <span className="placement-other">
+          <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address" onKeyDown={(e) => e.key === 'Enter' && saveOther()} />
+          <button onClick={saveOther} disabled={busy}>{busy ? '…' : 'Set'}</button>
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
   const evs = eventsForDay(day).filter((e) => e.kind !== 'flight' || true);
@@ -10,7 +52,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
   const stops = routableStops(day);
   const lodging = lodgingFor(day);
   const banner = BANNERS.find((b) => day >= b.from && day <= b.to);
-  const routeUrl = gmapsRoute([...(lodging ? [lodging] : []), ...stops.filter((s) => s.kind !== 'flight').map(venueOf)]);
+  const routeUrl = gmapsRoute([...(lodging ? [lodging] : []), ...stops.filter((s) => s.kind !== 'flight').map(effectiveVenue)]);
 
   const stopIndex = new Map(stops.filter((s) => s.kind !== 'flight').map((s, i) => [s.id, i + 1]));
   const legAfter = new Map(legs.map((l) => [l.from.id, l]));
@@ -52,7 +94,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
       <div className="side-scroll">
         {evs.length === 0 && <div className="empty-note">Nothing on the calendar. A clean day.</div>}
         {evs.map((ev) => {
-          const v = venueOf(ev);
+          const v = effectiveVenue(ev);
           const num = stopIndex.get(ev.id);
           const color = v ? HOOD_COLORS[v.hood] : ev.virtual ? HOOD_COLORS.virtual : HOOD_COLORS.tbd;
           const leg = legAfter.get(ev.id);
@@ -88,7 +130,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
                         {v.name} · {v.hood}
                       </a>
                     ) : ev.virtual ? (
-                      'Video call — no travel'
+                      'Video call'
                     ) : ev.tbd ? (
                       'No location yet'
                     ) : (
@@ -96,6 +138,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
                     )}
                   </div>
                   {ev.note && <div className="stop-note">⚑ {ev.note}</div>}
+                  {ev.virtual && <PlacementPicker ev={ev} />}
                 </div>
               </div>
 
@@ -115,7 +158,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
               {free && (
                 <div className="free-row">
                   <b>{Math.floor(free.gap / 60)}h{free.gap % 60 ? ` ${free.gap % 60}m` : ''}</b> open after this —{' '}
-                  {venueOf(free.from) ? `you'll be in ${venueOf(free.from).hood}` : 'location flexible'}
+                  {effectiveVenue(free.from) ? `you'll be in ${effectiveVenue(free.from).hood}` : 'location flexible'}
                 </div>
               )}
             </React.Fragment>

@@ -51,3 +51,50 @@ export function gmapsRoute(stops) {
 export function gmapsPlace(v) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.address || `${v.lat},${v.lng}`)}`;
 }
+
+// Prefilled "create event" in the user's own Google Calendar — no write scope
+// needed; Google's own UI does the saving. Times are floating-local strings.
+export function gcalTemplate({ title, location, details, startMs, endMs, offset }) {
+  const sign = offset[0] === '-' ? -1 : 1;
+  const [oh, om] = offset.slice(1).split(':').map(Number);
+  const f = (ms) => {
+    const d = new Date(ms + sign * (oh * 60 + om) * 60000);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T${p(d.getUTCHours())}${p(d.getUTCMinutes())}00`;
+  };
+  const q = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${f(startMs)}/${f(endMs)}`,
+    location: location || '',
+    details: details || '',
+  });
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
+
+// Nearby spots via Overpass (OpenStreetMap) — free, key-less, CORS-friendly.
+export async function fetchNearbySpots(bounds) {
+  const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+  const q = `[out:json][timeout:12];(
+    node["amenity"~"^(cafe|restaurant|bar|pub)$"]["name"](${bbox});
+  );out 80;`;
+  // Public Overpass instances rate-limit under load — try the main one, then a mirror.
+  let r;
+  for (const host of ['https://overpass-api.de', 'https://overpass.kumi.systems']) {
+    try {
+      r = await fetch(`${host}/api/interpreter`, { method: 'POST', body: 'data=' + encodeURIComponent(q) });
+      if (r.ok) break;
+    } catch { r = null; }
+  }
+  if (!r || !r.ok) throw new Error('Overpass unavailable');
+  const js = await r.json();
+  return (js.elements || []).map((n) => ({
+    id: n.id,
+    name: n.tags.name,
+    type: n.tags.amenity === 'pub' ? 'bar' : n.tags.amenity,
+    cuisine: n.tags.cuisine ? n.tags.cuisine.split(';')[0].replace(/_/g, ' ') : null,
+    address: [n.tags['addr:housenumber'], n.tags['addr:street']].filter(Boolean).join(' ') || null,
+    lat: n.lat,
+    lng: n.lon,
+  }));
+}

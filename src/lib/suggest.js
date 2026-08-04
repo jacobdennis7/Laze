@@ -122,6 +122,89 @@ export function fmtSlotTime(ms, off) {
   return min ? `${h}:${String(min).padStart(2, '0')}${ap}` : `${h}${ap}`;
 }
 
+// ---------- booking links (Calendly / cal.com / Vimcal) ----------
+
+export function detectBookingLink(text) {
+  const m = text.match(/https?:\/\/(?:www\.)?(calendly\.com|cal\.com|app\.cal\.com|book\.vimcal\.com|cal\.ai)[^\s>"')]+/i);
+  return m ? { url: m[0], provider: m[1].replace(/^(www\.|app\.|book\.)/, '').split('.')[0] } : null;
+}
+
+// Direct read of a booking page's availability. Expected to fail from a browser —
+// these sites don't send CORS headers — but we try, so a future proxy slots in here.
+export async function tryReadBookingLink(url) {
+  try {
+    const r = await fetch(url, { mode: 'cors' });
+    if (!r.ok) return { ok: false, reason: `HTTP ${r.status}` };
+    return { ok: false, reason: 'page fetched but availability is loaded by their app — needs the proxy' };
+  } catch {
+    return { ok: false, reason: 'cors' };
+  }
+}
+
+// Parse availability text pasted from a booking page: date lines establish context,
+// bare times inherit the most recent date. Handles "Monday, August 10", "Mon 8/10",
+// "8/10", and times like "1:00pm", "13:30", "1 PM".
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+export function parseTheirSlots(text, year = 2026) {
+  const out = [];
+  let curDay = null;
+  for (const rawLine of text.split(/\n+/)) {
+    const line = rawLine.trim().toLowerCase();
+    if (!line) continue;
+    let m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/);
+    if (m) curDay = `${year}-${String(MONTHS[m[1]]).padStart(2, '0')}-${String(+m[2]).padStart(2, '0')}`;
+    m = line.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+    if (m) curDay = `${year}-${String(+m[1]).padStart(2, '0')}-${String(+m[2]).padStart(2, '0')}`;
+    const timeRe = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(\d{2}):(\d{2})\b/g;
+    let t;
+    while ((t = timeRe.exec(line))) {
+      if (!curDay) continue;
+      let h, min;
+      if (t[3]) {
+        h = +t[1] % 12 + (t[3] === 'pm' ? 12 : 0);
+        min = +(t[2] || 0);
+      } else {
+        h = +t[4];
+        min = +t[5];
+      }
+      out.push({ day: curDay, minutes: h * 60 + min });
+    }
+  }
+  return out;
+}
+
+// Intersect their offered slots with my real free windows.
+export function matchTheirSlots({ theirs, start, end, durationMin = 30, them = null }) {
+  const { windows } = rankWindows({ start, end, them, durationMin });
+  const matches = [];
+  for (const t of theirs) {
+    const w = windows.find((w) => {
+      if (w.day !== t.day) return false;
+      const tMs = toDayEpoch(t.day, t.minutes, w.offset);
+      return tMs >= w.s && tMs + durationMin * 60000 <= w.e;
+    });
+    if (w) {
+      const tMs = toDayEpoch(t.day, t.minutes, w.offset);
+      matches.push({ ...t, ms: tMs, window: w, offset: w.offset });
+    }
+  }
+  // dedupe + keep chronological
+  const seen = new Set();
+  return matches.filter((m) => {
+    const k = `${m.day}T${m.minutes}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).sort((a, b) => a.ms - b.ms);
+}
+
+function toDayEpoch(day, minutes, off) {
+  const h = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const m = String(minutes % 60).padStart(2, '0');
+  return new Date(`${day}T${h}:${m}:00${off}`).getTime();
+}
+
 export function buildDraft({ tone, slots, them, cafe, missedAsk }) {
   const lines = slots.map((s) => `• ${s.label}`);
   const venueLine = cafe

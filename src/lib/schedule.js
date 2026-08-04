@@ -1,8 +1,16 @@
 import { VENUES, LODGING, HOME } from '../data/events.js';
 import { getEvents } from './store.js';
 import { liveMinutes } from './routes.js';
+import { resolvePlacement, getPlaces } from './prefs.js';
 import { toEpoch, eachDay } from './time.js';
 import { travelMinutes, venueOf, bestMode } from './geo.js';
+
+// Where an event effectively happens: its real venue, or — for virtual meetings —
+// wherever the user says they'll take the call (home / office / other).
+export function effectiveVenue(ev) {
+  if (!ev.virtual) return venueOf(ev);
+  return resolvePlacement(ev);
+}
 
 export function eventsForRange(start, end) {
   return getEvents().filter((e) => e.day >= start && e.day <= end && !e.hidden).sort(
@@ -17,13 +25,16 @@ export function eventsForDay(day) {
 export function lodgingFor(day) {
   const l = LODGING.find((l) => day >= l.from && day <= l.to);
   if (l && VENUES[l.venue]) return { ...VENUES[l.venue], label: l.label };
+  const home = getPlaces().home;
+  if (home) return { ...home, label: 'Home' };
   if (HOME && VENUES[HOME]) return { ...VENUES[HOME], label: 'Home' };
   return null; // no base configured — anchors fall back to the day's meetings
 }
 
-// In-person routable stops for a day (has coordinates, not home-city noise, not TBD).
+// Routable stops for a day: in-person meetings with coordinates, plus virtual
+// meetings the user has placed somewhere. Excludes home-city noise and TBDs.
 export function routableStops(day) {
-  return eventsForDay(day).filter((e) => !e.virtual && !e.homeCity && !e.tbd && venueOf(e));
+  return eventsForDay(day).filter((e) => !e.homeCity && !e.tbd && effectiveVenue(e));
 }
 
 // Travel legs between consecutive in-person stops, with gap feasibility.
@@ -32,7 +43,7 @@ export function dayLegs(day, mode = 'drive') {
   const legs = [];
   for (let i = 0; i < stops.length - 1; i++) {
     const a = stops[i], b = stops[i + 1];
-    const va = venueOf(a), vb = venueOf(b);
+    const va = effectiveVenue(a), vb = effectiveVenue(b);
     const gapMin = Math.round((toEpoch(b.start) - toEpoch(a.end)) / 60000);
     const auto = bestMode(va, vb);
     const useMode = mode === 'auto' ? auto : mode;
@@ -233,8 +244,8 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = 8 * 60, da
 }
 
 function mkWindow(day, s, e, before, after, offset) {
-  const vb = before && !before.virtual ? venueOf(before) : null;
-  const va = after && !after.virtual ? venueOf(after) : null;
+  const vb = before ? effectiveVenue(before) : null;
+  const va = after ? effectiveVenue(after) : null;
   const lodging = lodgingFor(day);
   return {
     day, s, e,
