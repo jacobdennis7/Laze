@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { HOOD_COLORS } from '../data/events.js';
 import { fetchNearbySpots } from '../lib/geo.js';
+import { loadSettings } from '../lib/store.js';
 import { routableStops, dayLegs, lodgingFor, effectiveVenue } from '../lib/schedule.js';
 import { fmtTime } from '../lib/time.js';
 import { MODE_ICON } from '../lib/geo.js';
@@ -35,10 +36,13 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest }) {
   const spotLayerRef = useRef(null);
   const tileRef = useRef(null);
   const [spotsOn, setSpotsOn] = useState(false);
-  const [spotState, setSpotState] = useState('idle'); // idle | loading | ok | error
+  // idle | loading | ok | empty | error | zoom | stale
+  const [spotState, setSpotState] = useState('idle');
   const suggestRef = useRef(onSpotSuggest);
   suggestRef.current = onSpotSuggest;
-  const loadSpotsRef = useRef(null);
+  const genRef = useRef(0); // invalidates in-flight searches on toggle-off / re-search
+  const spotCacheRef = useRef(new Map());
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const map = L.map('leaflet-map', { zoomControl: false });
@@ -119,73 +123,108 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest }) {
     else if (pts.length === 1) map.setView(pts[0], 13);
   }, [day, mode, dataVersion]);
 
-  // ---- spots layer ----
-  async function loadSpots() {
+  // ---- spots layer: manual "search this area" model ----
+  function renderSpots(spots) {
     const map = mapRef.current;
     const layer = spotLayerRef.current;
-    if (!map || !layer) return;
-    setSpotState('loading');
     layer.clearLayers();
-    try {
-      const spots = await fetchNearbySpots(map.getBounds());
-      for (const s of spots) {
-        const m = L.marker([s.lat, s.lng], {
-          zIndexOffset: -100,
-          icon: L.divIcon({
-            className: '',
-            html: `<div class="spot-dot" style="background:${SPOT_COLORS[s.type] || '#777'}">${SPOT_ICONS[s.type] || '·'}</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
-          }),
-        }).addTo(layer);
-        const el = document.createElement('div');
-        el.className = 'spot-pop';
-        el.innerHTML = `
-          <b>${s.name}</b>
-          <div class="sub">${s.type}${s.cuisine ? ` · ${s.cuisine}` : ''}${s.address ? ` · ${s.address}` : ''}</div>
-          <div class="row">
-            <button class="spot-suggest">＋ Suggest a time here</button>
-            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.address || ''} ${s.lat},${s.lng}`)}" target="_blank" rel="noreferrer">gmaps ↗</a>
-          </div>`;
-        el.querySelector('.spot-suggest').addEventListener('click', () => {
-          map.closePopup();
-          suggestRef.current && suggestRef.current(s);
-        });
-        m.bindPopup(el, { closeButton: true, offset: [0, -4] });
-      }
-      setSpotState(spots.length ? 'ok' : 'empty');
-    } catch {
-      setSpotState('error');
+    for (const s of spots) {
+      const m = L.marker([s.lat, s.lng], {
+        zIndexOffset: -100,
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="spot-dot" style="background:${SPOT_COLORS[s.type] || '#777'}">${SPOT_ICONS[s.type] || '·'}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      }).addTo(layer);
+      const el = document.createElement('div');
+      el.className = 'spot-pop';
+      el.innerHTML = `
+        <b>${s.name}</b>
+        <div class="sub">${s.type}${s.cuisine ? ` · ${s.cuisine}` : ''}${s.address ? ` · ${s.address}` : ''}</div>
+        <div class="row">
+          <button class="spot-suggest">＋ Suggest a time here</button>
+          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.address || ''} ${s.lat},${s.lng}`)}" target="_blank" rel="noreferrer">gmaps ↗</a>
+        </div>`;
+      el.querySelector('.spot-suggest').addEventListener('click', () => {
+        map.closePopup();
+        suggestRef.current && suggestRef.current(s);
+      });
+      m.bindPopup(el, { closeButton: true, offset: [0, -4] });
     }
   }
 
-  loadSpotsRef.current = loadSpots;
+  async function searchHere() {
+    const map = mapRef.current;
+    if (!map) return;
+    if (map.getZoom() < 13) {
+      spotLayerRef.current.clearLayers();
+      setSpotState('zoom');
+      return;
+    }
+    const gen = ++genRef.current;
+    setSpotState('loading');
+    const b = map.getBounds();
+    const key = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map((n) => n.toFixed(3)).join(',');
+    try {
+      let spots = spotCacheRef.current.get(key);
+      if (!spots) {
+        spots = await fetchNearbySpots(b, loadSettings().mapsKey || null);
+        spotCacheRef.current.set(key, spots);
+      }
+      if (gen !== genRef.current) return; // toggled off / superseded while fetching
+      renderSpots(spots);
+      setSpotState(spots.length ? 'ok' : 'empty');
+    } catch {
+      if (gen === genRef.current) setSpotState('error');
+    }
+  }
+  searchRef.current = searchHere;
 
   function toggleSpots() {
     const next = !spotsOn;
     setSpotsOn(next);
     const map = mapRef.current;
+    genRef.current++; // kill anything in flight either way
     if (next) {
       tileRef.current.setUrl(TILES_DETAIL);
-      loadSpotsRef.current();
-      map._spotsHandler = () => loadSpotsRef.current();
-      map.on('moveend', map._spotsHandler);
+      searchRef.current();
+      // Moving the map never auto-fetches (that's what rate-limited the free API);
+      // it just marks results stale so the "Search this area" chip appears.
+      map._spotsMove = () => setSpotState((s) => (s === 'ok' || s === 'empty' || s === 'zoom' ? 'stale' : s));
+      map.on('moveend', map._spotsMove);
     } else {
       tileRef.current.setUrl(TILES);
-      if (map._spotsHandler) map.off('moveend', map._spotsHandler);
+      if (map._spotsMove) map.off('moveend', map._spotsMove);
       spotLayerRef.current.clearLayers();
       setSpotState('idle');
     }
   }
 
+  const searchLabel =
+    spotState === 'loading' ? 'Searching…'
+    : spotState === 'zoom' ? 'Zoom in to see spots'
+    : spotState === 'error' ? 'Search failed — try again'
+    : spotState === 'stale' ? 'Search this area'
+    : spotState === 'empty' ? 'Nothing here — search again?'
+    : null;
+
   return (
     <>
       <div id="leaflet-map" aria-label="Meeting map" />
       <button className={`spots-toggle pill-btn${spotsOn ? ' on' : ''}`} onClick={toggleSpots}>
-        ☕ Spots
-        {spotState === 'loading' && ' …'}
-        {spotState === 'error' && ' — retry?'}
+        {spotsOn ? '✕ Spots' : '☕ Spots'}
       </button>
+      {spotsOn && searchLabel && (
+        <button
+          className="search-area pill-btn"
+          onClick={() => searchRef.current()}
+          disabled={spotState === 'loading' || spotState === 'zoom'}
+        >
+          {searchLabel}
+        </button>
+      )}
     </>
   );
 }

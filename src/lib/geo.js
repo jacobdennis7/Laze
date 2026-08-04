@@ -72,19 +72,83 @@ export function gcalTemplate({ title, location, details, startMs, endMs, offset 
   return `https://calendar.google.com/calendar/render?${q}`;
 }
 
-// Nearby spots via Overpass (OpenStreetMap) — free, key-less, CORS-friendly.
-export async function fetchNearbySpots(bounds) {
+// Nearby spots: Google Places when a Maps key is configured (fast, reliable,
+// real place data), else public Overpass/OSM mirrors (free but best-effort).
+export async function fetchNearbySpots(bounds, mapsKey = null) {
+  if (mapsKey) {
+    try {
+      return await googleNearby(bounds, mapsKey);
+    } catch { /* key may lack Places API — fall through to OSM */ }
+  }
+  return overpassNearby(bounds);
+}
+
+const G_TYPE = (types = [], primary = '') => {
+  const all = [primary, ...types];
+  if (all.some((t) => /cafe|coffee|bakery|tea/.test(t))) return 'cafe';
+  if (all.some((t) => /bar|pub|night_club|wine/.test(t))) return 'bar';
+  return 'restaurant';
+};
+
+async function googleNearby(bounds, key) {
+  const c = bounds.getCenter();
+  // radius that covers the visible area, capped at Places' 2km sweet spot
+  const radius = Math.min(
+    2000,
+    Math.max(300, (haversineKm(
+      { lat: bounds.getSouth(), lng: bounds.getWest() },
+      { lat: bounds.getNorth(), lng: bounds.getEast() }
+    ) * 1000) / 2)
+  );
+  const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'places.displayName,places.location,places.primaryType,places.types,places.shortFormattedAddress,places.rating',
+    },
+    body: JSON.stringify({
+      includedTypes: ['cafe', 'coffee_shop', 'restaurant', 'bar'],
+      maxResultCount: 20,
+      locationRestriction: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius } },
+    }),
+  });
+  if (!r.ok) throw new Error(`Places ${r.status}`);
+  const js = await r.json();
+  return (js.places || []).map((p, i) => ({
+    id: `g${i}`,
+    name: p.displayName?.text || 'Unnamed',
+    type: G_TYPE(p.types, p.primaryType),
+    cuisine: p.rating ? `★ ${p.rating}` : null,
+    address: p.shortFormattedAddress || null,
+    lat: p.location.latitude,
+    lng: p.location.longitude,
+  }));
+}
+
+async function overpassNearby(bounds) {
   const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-  const q = `[out:json][timeout:12];(
+  const q = `[out:json][timeout:8];(
     node["amenity"~"^(cafe|restaurant|bar|pub)$"]["name"](${bbox});
   );out 80;`;
-  // Public Overpass instances rate-limit under load — try the main one, then a mirror.
+  // Public Overpass instances rate-limit under load — try the main one, then a
+  // mirror, each with a hard client-side timeout so a hang fails fast.
   let r;
-  for (const host of ['https://overpass-api.de', 'https://overpass.kumi.systems']) {
+  for (const host of ['https://overpass-api.de', 'https://overpass.kumi.systems', 'https://overpass.private.coffee']) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 9000);
     try {
-      r = await fetch(`${host}/api/interpreter`, { method: 'POST', body: 'data=' + encodeURIComponent(q) });
+      r = await fetch(`${host}/api/interpreter`, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(q),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
       if (r.ok) break;
-    } catch { r = null; }
+    } catch {
+      clearTimeout(t);
+      r = null;
+    }
   }
   if (!r || !r.ok) throw new Error('Overpass unavailable');
   const js = await r.json();

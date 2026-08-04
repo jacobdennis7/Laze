@@ -149,8 +149,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 
 .day-chips {
   position: absolute; top: 12px; left: 12px; z-index: 900;
-  display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 24px);
+  display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto;
+  max-width: calc(100% - 120px); /* keep clear of the Spots toggle */
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
+.day-chips::-webkit-scrollbar { display: none; }
+.day-chips button { white-space: nowrap; flex-shrink: 0; }
 .day-chips button {
   border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 999px;
   padding: 7px 14px; font-weight: 600; font-size: 13px; box-shadow: var(--shadow);
@@ -390,6 +395,24 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 
 .spots-toggle { position: absolute; top: 12px; right: 12px; z-index: 900; box-shadow: var(--shadow); }
 .spots-toggle.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.search-area {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+  z-index: 900; box-shadow: var(--shadow); font-size: 13px;
+  background: var(--surface);
+}
+.search-area:disabled { opacity: 0.75; cursor: default; }
+
+.custom-slot { border-top: 1px solid var(--hairline); margin-top: 14px; padding-top: 12px; }
+.custom-slot label {
+  display: block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+}
+.custom-row { display: flex; gap: 8px; align-items: center; }
+.custom-row input[type='time'], .custom-row select {
+  border: 1px solid var(--hairline-2); border-radius: 8px; padding: 8px 10px;
+  font-family: inherit; font-size: 14px; background: var(--surface); color: var(--ink);
+}
+.clash-note { margin-top: 8px; font-size: 12.5px; color: var(--warn); }
 .spot-dot {
   display: flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%; font-size: 11px;
@@ -456,5 +479,19 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   .modal-col + .modal-col { border-left: none; border-top: 1px solid var(--hairline); }
   .topbar { gap: 8px; padding: 8px 10px; }
   .brand .logo { font-size: 15px; }
+
+  /* day chips scroll in one row; Spots moves to the bottom-right, clear of them */
+  .day-chips { max-width: calc(100% - 24px); right: 12px; }
+  .spots-toggle { top: auto; bottom: 84px; right: 14px; }
+  .search-area { top: auto; bottom: 84px; left: 14px; transform: none; }
+
+  /* range picker: fixed and centered so the whole month fits on screen */
+  .popover {
+    position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+    width: min(94vw, 340px); max-height: calc(100dvh - 84px); overflow-y: auto;
+  }
+
+  .pill-btn { padding: 7px 12px; }
+  .seg button { padding: 7px 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }
