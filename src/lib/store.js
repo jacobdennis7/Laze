@@ -56,7 +56,11 @@ const LS = 'laze-settings';
 const DEFAULTS = {
   clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
   mapsKey: import.meta.env.VITE_MAPS_KEY || '',
-  tz: 'America/Los_Angeles',
+  // default to the device's timezone so new testers see sane times immediately
+  tz: (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'; }
+    catch { return 'America/New_York'; }
+  })(),
   calendars: null,
 };
 

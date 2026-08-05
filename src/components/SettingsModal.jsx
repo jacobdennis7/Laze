@@ -87,6 +87,11 @@ function FavoritesEditor() {
   );
 }
 
+// When the deployed build ships app-level credentials, users never see or touch
+// them — the panel is purely "connect your calendar + your places". The raw
+// credential fields and GCP setup notes only render for self-hosters/dev.
+const HAS_APP_CREDS = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export default function SettingsModal({ onClose, onSync }) {
   const [s, setS] = useState(loadSettings);
   const [cals, setCals] = useState(null);
@@ -140,35 +145,45 @@ export default function SettingsModal({ onClose, onSync }) {
             <button className="x-btn" onClick={onClose} aria-label="Close">✕</button>
           </div>
           <div className="modal-col">
-            <div className="field">
-              <label>Google OAuth Client ID — for live calendar</label>
-              <input
-                value={s.clientId}
-                onChange={(e) => upd({ clientId: e.target.value })}
-                placeholder="1234567890-xxxx.apps.googleusercontent.com"
-                autoComplete="off"
-              />
-            </div>
-            <div className="field">
-              <label>Google Maps Platform API key — for live drive times (optional)</label>
-              <div className="field-row" style={{ alignItems: 'center' }}>
-                <input
-                  value={s.mapsKey}
-                  onChange={(e) => { upd({ mapsKey: e.target.value }); setKeyTest(null); }}
-                  placeholder="AIza…"
-                  autoComplete="off"
-                  style={{ flex: 1 }}
-                />
-                <button className="pill-btn" onClick={doTestKey} disabled={!s.mapsKey.trim() || keyTest === 'testing'}>
-                  {keyTest === 'testing' ? 'Testing…' : 'Test key'}
-                </button>
-              </div>
-              {keyTest && keyTest !== 'testing' && (
-                <div style={{ fontSize: 12.5, marginTop: 6, color: keyTest.ok ? 'var(--ok)' : 'var(--alert)' }}>
-                  {keyTest.ok ? `✓ Routes API working — ${keyTest.detail}` : `✕ ${keyTest.detail}`}
+            {HAS_APP_CREDS && (
+              <p style={{ margin: '0 0 14px', fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                Laze reads your Google Calendar (read-only) to map your week. Nothing is stored on a
+                server — your events and places stay in this browser.
+              </p>
+            )}
+            {!HAS_APP_CREDS && (
+              <>
+                <div className="field">
+                  <label>Google OAuth Client ID — for live calendar</label>
+                  <input
+                    value={s.clientId}
+                    onChange={(e) => upd({ clientId: e.target.value })}
+                    placeholder="1234567890-xxxx.apps.googleusercontent.com"
+                    autoComplete="off"
+                  />
                 </div>
-              )}
-            </div>
+                <div className="field">
+                  <label>Google Maps Platform API key — for live drive times (optional)</label>
+                  <div className="field-row" style={{ alignItems: 'center' }}>
+                    <input
+                      value={s.mapsKey}
+                      onChange={(e) => { upd({ mapsKey: e.target.value }); setKeyTest(null); }}
+                      placeholder="AIza…"
+                      autoComplete="off"
+                      style={{ flex: 1 }}
+                    />
+                    <button className="pill-btn" onClick={doTestKey} disabled={!s.mapsKey.trim() || keyTest === 'testing'}>
+                      {keyTest === 'testing' ? 'Testing…' : 'Test key'}
+                    </button>
+                  </div>
+                  {keyTest && keyTest !== 'testing' && (
+                    <div style={{ fontSize: 12.5, marginTop: 6, color: keyTest.ok ? 'var(--ok)' : 'var(--alert)' }}>
+                      {keyTest.ok ? `✓ Routes API working — ${keyTest.detail}` : `✕ ${keyTest.detail}`}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
             <div style={{ borderTop: '1px solid var(--hairline)', margin: '4px 0 14px', paddingTop: 14 }}>
               <BaseField kind="home" label="Home base — routing anchor + where virtual calls default" placeholder="905 California St, San Francisco" />
               <BaseField kind="office" label="Office" placeholder="Your office address" />
@@ -187,10 +202,15 @@ export default function SettingsModal({ onClose, onSync }) {
             </div>
 
             <div className="field">
-              <label>Display timezone for synced events</label>
+              <label>Display timezone</label>
               <select value={s.tz} onChange={(e) => upd({ tz: e.target.value })}>
-                <option value="America/Los_Angeles">Pacific (SF trip)</option>
-                <option value="America/New_York">Eastern (home)</option>
+                {!['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'].includes(s.tz) && (
+                  <option value={s.tz}>{s.tz.split('/').pop().replace(/_/g, ' ')} (device)</option>
+                )}
+                <option value="America/New_York">Eastern</option>
+                <option value="America/Chicago">Central</option>
+                <option value="America/Denver">Mountain</option>
+                <option value="America/Los_Angeles">Pacific</option>
               </select>
             </div>
 
@@ -206,7 +226,9 @@ export default function SettingsModal({ onClose, onSync }) {
                 {st.syncing ? 'Syncing…' : 'Sync now'}
               </button>
               {st.source === 'live' && (
-                <button className="pill-btn" onClick={resetToSnapshot}>Back to snapshot</button>
+                <button className="pill-btn" onClick={resetToSnapshot}>
+                  {HAS_APP_CREDS ? 'Clear synced data' : 'Back to snapshot'}
+                </button>
               )}
             </div>
             {err && (
@@ -239,16 +261,18 @@ export default function SettingsModal({ onClose, onSync }) {
               </div>
             )}
 
-            <div style={{ borderTop: '1px solid var(--hairline)', marginTop: 16, paddingTop: 12, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-              <b style={{ color: 'var(--ink)' }}>One-time setup</b> (≈5 min, see README for detail):
-              <ol style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                <li>console.cloud.google.com → new project → enable <b>Google Calendar API</b> (+ <b>Routes API</b> for drive times)</li>
-                <li>OAuth consent screen → External → add yourself as a test user</li>
-                <li>Credentials → OAuth Client ID → Web app → authorized JS origin <code>http://localhost:5174</code></li>
-                <li>Paste the Client ID (and an API key) above, Connect, then Sync</li>
-              </ol>
-              Tokens stay in this browser; scope is read-only.
-            </div>
+            {!HAS_APP_CREDS && (
+              <div style={{ borderTop: '1px solid var(--hairline)', marginTop: 16, paddingTop: 12, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+                <b style={{ color: 'var(--ink)' }}>One-time setup</b> (≈5 min, see README for detail):
+                <ol style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                  <li>console.cloud.google.com → new project → enable <b>Google Calendar API</b> (+ <b>Routes API</b> for drive times)</li>
+                  <li>OAuth consent screen → External → add yourself as a test user</li>
+                  <li>Credentials → OAuth Client ID → Web app → authorized JS origin <code>http://localhost:5174</code></li>
+                  <li>Paste the Client ID (and an API key) above, Connect, then Sync</li>
+                </ol>
+                Tokens stay in this browser; scope is read-only.
+              </div>
+            )}
           </div>
         </div>
       </div>
