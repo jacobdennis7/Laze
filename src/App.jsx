@@ -7,6 +7,7 @@ import { fetchRange, isConnected, connect, listCalendars } from './lib/google.js
 import { warmLegs, subscribeRoutes, routesVersion } from './lib/routes.js';
 import { subscribePrefs, prefsVersion } from './lib/prefs.js';
 import SpotSuggestModal from './components/SpotSuggestModal.jsx';
+import TravelBlockModal from './components/TravelBlockModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
 import MapView from './components/MapView.jsx';
 import DayPanel from './components/DayPanel.jsx';
@@ -31,6 +32,7 @@ export default function App() {
   const rVersion = useSyncExternalStore(subscribeRoutes, routesVersion);
   const pVersion = useSyncExternalStore(subscribePrefs, prefsVersion);
   const [spotSuggest, setSpotSuggest] = useState(null);
+  const [travelBlock, setTravelBlock] = useState(null); // { leg, day }
 
   const days = useMemo(() => eachDay(range.start, range.end), [range]);
   // store.version / rVersion are re-computation triggers, not read directly.
@@ -54,6 +56,19 @@ export default function App() {
     setActiveDay(r.start);
   }
 
+  // Returning users: a stored token (< 1h old) syncs immediately with zero clicks;
+  // past expiry, a silent reconnect reuses the Google session where possible.
+  useEffect(() => {
+    const s = loadSettings();
+    if (!s.clientId || !s.wasConnected) return;
+    if (isConnected()) {
+      doSync(s);
+    } else {
+      connect(s.clientId, { silent: true }).then(() => doSync(s)).catch(() => { /* they'll click Sync */ });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function doSync(settings) {
     const s = settings || loadSettings();
     if (!isConnected()) {
@@ -69,6 +84,7 @@ export default function App() {
         tz: s.tz,
       });
       setLiveEvents(events);
+      if (!s.wasConnected) saveSettings({ ...s, wasConnected: true });
     } catch (e) {
       setSyncError(e.message);
     }
@@ -155,7 +171,13 @@ export default function App() {
         {view === 'map' ? (
           <>
             <div className="map-pane">
-              <MapView day={activeDay} mode={mode} dataVersion={`${store.version}.${rVersion}.${pVersion}`} onSpotSuggest={setSpotSuggest} />
+              <MapView
+                day={activeDay}
+                mode={mode}
+                dataVersion={`${store.version}.${rVersion}.${pVersion}`}
+                onSpotSuggest={setSpotSuggest}
+                onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
+              />
               <div className="day-chips" role="tablist" aria-label="Day">
                 {days.map((d, i) => (
                   <button key={d} className={d === activeDay ? 'on' : ''} onClick={() => setActiveDay(d)} role="tab" aria-selected={d === activeDay}>
@@ -167,10 +189,16 @@ export default function App() {
                 {showItin ? 'Hide itinerary' : 'Itinerary'}
               </button>
             </div>
-            <DayPanel day={activeDay} mode={mode} onSelect={setSelectedEvent} mobileOpen={showItin} />
+            <DayPanel
+              day={activeDay}
+              mode={mode}
+              onSelect={setSelectedEvent}
+              mobileOpen={showItin}
+              onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
+            />
           </>
         ) : (
-          <CalendarView range={range} mode={mode} onSelect={setSelectedEvent} />
+          <CalendarView range={range} mode={mode} onSelect={setSelectedEvent} onTravel={(leg, d) => setTravelBlock({ leg, day: d })} />
         )}
         {isEmpty && (
           <div className="onboard">
@@ -194,6 +222,7 @@ export default function App() {
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSync={(s) => { setShowSettings(false); doSync(s); }} />}
       {selectedEvent && <EventModal ev={selectedEvent} onClose={() => setSelectedEvent(null)} />}
       {spotSuggest && <SpotSuggestModal spot={spotSuggest} day={activeDay} onClose={() => setSpotSuggest(null)} />}
+      {travelBlock && <TravelBlockModal leg={travelBlock.leg} day={travelBlock.day} onClose={() => setTravelBlock(null)} />}
     </div>
   );
 }

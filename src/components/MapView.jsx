@@ -30,7 +30,7 @@ function deoverlap(stops) {
   });
 }
 
-export default function MapView({ day, mode, dataVersion, onSpotSuggest }) {
+export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel }) {
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const spotLayerRef = useRef(null);
@@ -40,6 +40,8 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest }) {
   const [spotState, setSpotState] = useState('idle');
   const suggestRef = useRef(onSpotSuggest);
   suggestRef.current = onSpotSuggest;
+  const travelRef = useRef(onTravel);
+  travelRef.current = onTravel;
   const genRef = useRef(0); // invalidates in-flight searches on toggle-off / re-search
   const spotCacheRef = useRef(new Map());
   const searchRef = useRef(null);
@@ -109,14 +111,14 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest }) {
         { color: leg.tight ? '#c5321f' : '#5a6572', weight: 2.5, dashArray: '6 7', opacity: 0.85 }
       ).addTo(layer);
       const mid = [(leg.va.lat + leg.vb.lat) / 2, (leg.va.lng + leg.vb.lng) / 2];
-      L.marker(mid, {
-        interactive: false,
+      const chip = L.marker(mid, {
         icon: L.divIcon({
           className: `leg-chip-label${leg.tight ? ' tight' : ''}`,
-          html: `<span>${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
+          html: `<span title="Add a travel block to your calendar">${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
           iconSize: [0, 0],
         }),
       }).addTo(layer);
+      chip.on('click', () => travelRef.current && travelRef.current(leg));
     });
 
     if (pts.length > 1) map.fitBounds(pts, { padding: [56, 56], maxZoom: 15 });

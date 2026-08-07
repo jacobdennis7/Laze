@@ -46,7 +46,7 @@ function PlacementPicker({ ev }) {
   );
 }
 
-export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
+export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) {
   const evs = eventsForDay(day).filter((e) => e.kind !== 'flight' || true);
   const legs = dayLegs(day, mode);
   const stops = routableStops(day);
@@ -153,6 +153,9 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen }) {
                   <a href={gmapsDir(leg.va, leg.vb, leg.mode)} target="_blank" rel="noreferrer">
                     gmaps ↗
                   </a>
+                  <button className="leg-add" onClick={() => onTravel && onTravel(leg)} title="Add a travel block to your calendar">
+                    ＋ block
+                  </button>
                 </div>
               )}
               {free && (

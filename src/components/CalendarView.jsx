@@ -28,7 +28,7 @@ function packColumns(evs) {
   return placed.map((p) => ({ ...p, nCols }));
 }
 
-export default function CalendarView({ range, mode, onSelect }) {
+export default function CalendarView({ range, mode, onSelect, onTravel }) {
   const days = eachDay(range.start, range.end);
   const height = (DAY_END - DAY_START) * PX_PER_MIN;
   const hours = [];
@@ -111,9 +111,12 @@ export default function CalendarView({ range, mode, onSelect }) {
                   const mid = (minutesOfDay(l.from.end) + minutesOfDay(l.to.start)) / 2;
                   return (
                     <div className={`cal-travel${l.tight ? ' tight' : ''}`} key={i} style={{ top: yFor(mid) - 8 }}>
-                      <span>
+                      <button
+                        onClick={() => onTravel && onTravel(l, d)}
+                        title="Add a travel block to your calendar"
+                      >
                         {MODE_ICON[l.mode]} {l.mins}m{l.tight ? ` / ${l.gapMin}m gap` : ''}
-                      </span>
+                      </button>
                     </div>
                   );
                 })}

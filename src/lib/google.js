@@ -10,6 +10,19 @@ let accessToken = null;
 let tokenExpiry = 0;
 let gsiLoaded = null;
 
+// Access tokens last ~1h. Persisting one across reloads means no re-auth within
+// that window; after expiry, a silent reconnect (prompt:'') reuses the Google
+// session without asking again. True "never sign in" needs a backend with
+// refresh tokens — planned alongside app verification.
+const TOKEN_LS = 'laze-token';
+try {
+  const saved = JSON.parse(localStorage.getItem(TOKEN_LS) || 'null');
+  if (saved && saved.exp > Date.now() + 60000) {
+    accessToken = saved.token;
+    tokenExpiry = saved.exp;
+  }
+} catch { /* ignore */ }
+
 function loadGsi() {
   if (gsiLoaded) return gsiLoaded;
   gsiLoaded = new Promise((resolve, reject) => {
@@ -39,6 +52,7 @@ export async function connect(clientId, { silent = false } = {}) {
         if (resp.error) return reject(new Error(resp.error_description || resp.error));
         accessToken = resp.access_token;
         tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+        try { localStorage.setItem(TOKEN_LS, JSON.stringify({ token: accessToken, exp: tokenExpiry })); } catch { /* full */ }
         resolve();
       },
       error_callback: (e) => reject(new Error(e.message || 'Sign-in was closed')),

@@ -227,6 +227,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .leg-row.tight { color: var(--alert); }
 .leg-row.tight .t { font-weight: 700; }
 .leg-row a { font-size: 11.5px; }
+.leg-add {
+  border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; padding: 1px 8px; color: var(--muted);
+}
+.leg-add:hover { border-color: var(--accent); color: var(--accent); }
+.leg-chip-label span { cursor: pointer; }
+.leg-chip-label span:hover { border-color: var(--accent); color: var(--accent); }
 
 .free-row {
   margin: 6px 0 6px 13px; padding: 9px 12px;
@@ -274,8 +281,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   position: absolute; left: 4px; right: 4px; display: flex; align-items: center; justify-content: center;
   font-size: 10px; color: var(--muted); pointer-events: none; z-index: 5;
 }
-.cal-travel span { background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
-.cal-travel.tight span { color: var(--alert); border-color: var(--alert); font-weight: 700; }
+.cal-travel button {
+  pointer-events: auto; cursor: pointer; font-family: inherit; font-size: inherit; color: inherit;
+  background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px; padding: 0 7px; white-space: nowrap;
+}
+.cal-travel button:hover { border-color: var(--accent); color: var(--accent); }
+.cal-travel.tight button { color: var(--alert); border-color: var(--alert); font-weight: 700; }
 
 /* ---------- panels & modals ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(18, 20, 24, 0.42); z-index: 1400; }
