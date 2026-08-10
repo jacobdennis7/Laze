@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { HOOD_COLORS } from '../data/events.js';
-import { fetchNearbySpots } from '../lib/geo.js';
+import { fetchNearbySpots, travelMinutes, MODE_LABEL } from '../lib/geo.js';
+import { liveMinutes } from '../lib/routes.js';
 import { loadSettings } from '../lib/store.js';
 import { routableStops, dayLegs, lodgingFor, effectiveVenue } from '../lib/schedule.js';
 import { fmtTime } from '../lib/time.js';
 import { MODE_ICON } from '../lib/geo.js';
+import MapSearch from './MapSearch.jsx';
 
 const TILES = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const TILES_DETAIL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
@@ -46,6 +48,16 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
   const spotCacheRef = useRef(new Map());
   const searchRef = useRef(null);
 
+  // ---- search mode state ----
+  const [searchOn, setSearchOn] = useState(false);
+  const [picked, setPicked] = useState(null); // resolved place from the search bar
+  const [linked, setLinked] = useState(null); // { ev, venue } meeting to measure against
+  const pickedRef = useRef(null);
+  pickedRef.current = picked;
+  const searchLayerRef = useRef(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
   useEffect(() => {
     const map = L.map('leaflet-map', { zoomControl: false });
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
@@ -54,6 +66,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
     spotLayerRef.current = L.layerGroup().addTo(map);
+    searchLayerRef.current = L.layerGroup().addTo(map);
     return () => map.remove();
   }, []);
 
@@ -99,6 +112,10 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         `<b>${fmtTime(ev.start)} · ${ev.title}</b><span class="sub">${ev.virtual ? `Virtual · taken from ${v.label || v.name}` : `${v.name} — ${v.hood}`}</span>`,
         { className: 'wp-tip' }
       );
+      // In search mode with a place picked, tapping a meeting measures the hop to it.
+      m.on('click', () => {
+        if (pickedRef.current) setLinked({ ev, venue: v });
+      });
       pts.push([lat, lng]);
     });
 
@@ -204,6 +221,60 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     }
   }
 
+  // ---- search mode: pin + measure-line drawing ----
+  useEffect(() => {
+    const layer = searchLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!searchOn || !picked) return;
+    const pin = L.marker([picked.lat, picked.lng], {
+      zIndexOffset: 500,
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="search-pin">⌖</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      }),
+    }).addTo(layer);
+    pin.bindTooltip(`<b>${picked.name}</b><span class="sub">${picked.address}</span>`, { className: 'wp-tip' });
+    if (linked) {
+      const { venue, ev } = linked;
+      const mins = liveMinutes(picked, venue, mode) ?? travelMinutes(picked, venue, mode);
+      L.polyline(
+        [
+          [picked.lat, picked.lng],
+          [venue.lat, venue.lng],
+        ],
+        { color: '#1a73e8', weight: 3, dashArray: '4 8', opacity: 0.9 }
+      ).addTo(layer);
+      const mid = [(picked.lat + venue.lat) / 2, (picked.lng + venue.lng) / 2];
+      L.marker(mid, {
+        interactive: false,
+        icon: L.divIcon({
+          className: 'leg-chip-label search-link',
+          html: `<span>${MODE_ICON[mode]} ~${mins} min ${MODE_LABEL[mode]} → ${ev.title}</span>`,
+          iconSize: [0, 0],
+        }),
+      }).addTo(layer);
+    }
+  }, [searchOn, picked, linked, mode]);
+
+  function toggleSearch() {
+    const next = !searchOn;
+    setSearchOn(next);
+    if (!next) {
+      setPicked(null);
+      setLinked(null);
+    }
+  }
+
+  function handlePick(place) {
+    setPicked(place);
+    setLinked(null);
+    const map = mapRef.current;
+    if (map) map.flyTo([place.lat, place.lng], Math.max(map.getZoom(), 14), { duration: 0.6 });
+  }
+
   const searchLabel =
     spotState === 'loading' ? 'Searching…'
     : spotState === 'zoom' ? 'Zoom in to see spots'
@@ -215,6 +286,9 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
   return (
     <>
       <div id="leaflet-map" aria-label="Meeting map" />
+      <button className={`search-toggle pill-btn${searchOn ? ' on' : ''}`} onClick={toggleSearch}>
+        {searchOn ? '✕ Search' : '🔍 Search'}
+      </button>
       <button className={`spots-toggle pill-btn${spotsOn ? ' on' : ''}`} onClick={toggleSpots}>
         {spotsOn ? '✕ Spots' : '☕ Spots'}
       </button>
@@ -226,6 +300,30 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         >
           {searchLabel}
         </button>
+      )}
+      {searchOn && (
+        <MapSearch
+          getCenter={() => mapRef.current?.getCenter()}
+          onPick={handlePick}
+          onClose={toggleSearch}
+        />
+      )}
+      {searchOn && picked && (
+        <div className="search-card">
+          <div className="sc-name">{picked.name}</div>
+          <div className="sc-sub">{picked.address}</div>
+          <div className="sc-hint">
+            {linked
+              ? `~${liveMinutes(picked, linked.venue, mode) ?? travelMinutes(picked, linked.venue, mode)} min ${MODE_LABEL[mode]} to ${linked.ev.title} — tap another meeting to compare`
+              : 'Tap any meeting pin to see travel time from here'}
+          </div>
+          <button
+            className="pill-btn primary"
+            onClick={() => onSpotSuggest && onSpotSuggest({ ...picked, type: 'search' })}
+          >
+            ＋ Create a meeting here
+          </button>
+        </div>
       )}
     </>
   );

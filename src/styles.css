@@ -406,6 +406,53 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 
 .spots-toggle { position: absolute; top: 12px; right: 12px; z-index: 900; box-shadow: var(--shadow); }
 .spots-toggle.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.search-toggle { position: absolute; top: 12px; right: 118px; z-index: 900; box-shadow: var(--shadow); }
+.search-toggle.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* search mode: bar + results + picked card + pin */
+.map-search {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+  z-index: 950; width: min(440px, calc(100% - 24px));
+}
+.map-search-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--hairline-2);
+  border-radius: 999px; padding: 8px 8px 8px 14px; box-shadow: var(--shadow);
+}
+.map-search-bar input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 14px; background: transparent; color: var(--ink); }
+.map-search-bar .ms-icon { font-size: 13px; }
+.map-search-bar .ms-spin { color: var(--muted); }
+.map-search-results {
+  margin-top: 6px; background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+}
+.map-search-results button {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  padding: 10px 16px; font-family: inherit; border-bottom: 1px solid var(--hairline);
+}
+.map-search-results button:last-child { border-bottom: none; }
+.map-search-results button:hover { background: #f2f6fd; }
+.msr-label { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.msr-sub { display: block; font-size: 11.5px; color: var(--muted); }
+
+.search-card {
+  position: absolute; bottom: 18px; left: 14px; z-index: 950;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 12px; box-shadow: var(--shadow); padding: 12px 15px;
+  max-width: 290px;
+}
+.search-card .sc-name { font-weight: 700; font-size: 14px; }
+.search-card .sc-sub { font-size: 11.5px; color: var(--muted); margin: 1px 0 7px; }
+.search-card .sc-hint { font-size: 12px; color: var(--accent); margin-bottom: 9px; }
+.search-card .pill-btn { font-size: 12.5px; }
+
+.search-pin {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 19px; font-weight: 700;
+  border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.leg-chip-label.search-link span { color: var(--accent); border-color: var(--accent); font-weight: 700; }
 .search-area {
   position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
   z-index: 900; box-shadow: var(--shadow); font-size: 13px;
@@ -491,10 +538,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   .topbar { gap: 8px; padding: 8px 10px; }
   .brand .logo { font-size: 15px; }
 
-  /* day chips scroll in one row; Spots moves to the bottom-right, clear of them */
+  /* day chips scroll in one row; toggles move to the bottom, clear of them */
   .day-chips { max-width: calc(100% - 24px); right: 12px; }
   .spots-toggle { top: auto; bottom: 84px; right: 14px; }
-  .search-area { top: auto; bottom: 84px; left: 14px; transform: none; }
+  .search-toggle { top: auto; bottom: 84px; right: auto; left: 14px; }
+  .search-area { top: auto; bottom: 132px; left: 14px; transform: none; }
+  .map-search { top: 60px; }
+  .search-card { bottom: 132px; left: 14px; max-width: calc(100% - 28px); }
 
   /* range picker: fixed and centered so the whole month fits on screen */
   .popover {
