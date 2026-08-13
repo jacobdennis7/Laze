@@ -2,29 +2,21 @@ import React, { useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
 import { eventsForDay, dayLegs, routableStops, lodgingFor, effectiveVenue } from '../lib/schedule.js';
 import { gmapsRoute, gmapsDir, gmapsPlace, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
-import { getPlaces, getPlacement, setPlacement, setPlacementOther } from '../lib/prefs.js';
+import { getPlaces, getPlacement, setPlacement, setPlacementGeo } from '../lib/prefs.js';
 import { fmtTime, fmtDayLong, toEpoch } from '../lib/time.js';
+import AddressInput from './AddressInput.jsx';
 
 // Dropdown on virtual cards: where is this call being taken from?
 function PlacementPicker({ ev }) {
   const places = getPlaces();
   const pl = getPlacement(ev.id);
   const [otherOpen, setOtherOpen] = useState(false);
-  const [addr, setAddr] = useState('');
-  const [busy, setBusy] = useState(false);
   const value = pl ? pl.type : 'default';
 
-  async function change(v) {
+  function change(v) {
     if (v === 'other') { setOtherOpen(true); return; }
     setOtherOpen(false);
     setPlacement(ev.id, v === 'default' ? null : { type: v });
-  }
-
-  async function saveOther() {
-    if (!addr.trim()) return;
-    setBusy(true);
-    try { await setPlacementOther(ev.id, addr); setOtherOpen(false); } catch { /* keep open */ }
-    setBusy(false);
   }
 
   return (
@@ -38,8 +30,11 @@ function PlacementPicker({ ev }) {
       </select>
       {otherOpen && (
         <span className="placement-other">
-          <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address" onKeyDown={(e) => e.key === 'Enter' && saveOther()} />
-          <button onClick={saveOther} disabled={busy}>{busy ? '…' : 'Set'}</button>
+          <AddressInput
+            placeholder="Search address…"
+            onSelect={(place) => { setPlacementGeo(ev.id, place); setOtherOpen(false); }}
+            ariaLabel="Taken from address"
+          />
         </span>
       )}
     </div>

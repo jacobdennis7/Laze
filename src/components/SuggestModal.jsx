@@ -6,6 +6,7 @@ import {
   detectBookingLink, tryReadBookingLink, parseTheirSlots, matchTheirSlots,
 } from '../lib/suggest.js';
 import { fmtDayLong } from '../lib/time.js';
+import AddressInput from './AddressInput.jsx';
 
 const CAT_ICON = { coffee: '☕', lunch: '🍽', dinner: '🌙' };
 
@@ -15,9 +16,7 @@ const WD_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function SuggestModal({ range, onClose }) {
   const [msg, setMsg] = useState('');
   const [themKey, setThemKey] = useState('');
-  const [customAddr, setCustomAddr] = useState('');
   const [customPt, setCustomPt] = useState(null);
-  const [geoState, setGeoState] = useState('idle');
   const [duration, setDuration] = useState(45);
   const [tone, setTone] = useState('text');
   const [selected, setSelected] = useState([]);
@@ -87,24 +86,6 @@ export default function SuggestModal({ range, onClose }) {
   const chosen = slots.filter((s) => selected.includes(s.id));
   const draft = draftOverride ?? buildDraft({ tone, slots: chosen.length ? chosen : slots.slice(0, 3), them, cafe, missedAsk });
 
-  async function locate() {
-    if (!customAddr.trim()) return;
-    setGeoState('loading');
-    try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(customAddr)}`
-      );
-      const js = await r.json();
-      if (js[0]) {
-        setCustomPt({ lat: +js[0].lat, lng: +js[0].lon, name: customAddr, address: customAddr });
-        setThemKey('');
-        setGeoState('ok');
-      } else setGeoState('miss');
-    } catch {
-      setGeoState('miss');
-    }
-  }
-
   function toggleSlot(id) {
     setDraftOverride(null);
     setSelected((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id].slice(-3)));
@@ -160,21 +141,14 @@ export default function SuggestModal({ range, onClose }) {
                   </optgroup>
                 </select>
               </div>
-              <div className="field-row">
-                <div className="field">
-                  <label>Or exact address</label>
-                  <input
-                    value={customAddr}
-                    onChange={(e) => setCustomAddr(e.target.value)}
-                    placeholder="555 Market St, San Francisco"
-                    onKeyDown={(e) => e.key === 'Enter' && locate()}
-                  />
-                </div>
-                <div className="field" style={{ flex: '0 0 auto', alignSelf: 'flex-end' }}>
-                  <button className="pill-btn" onClick={locate}>
-                    {geoState === 'loading' ? 'Locating…' : geoState === 'ok' ? 'Located ✓' : geoState === 'miss' ? 'Not found — retry' : 'Locate'}
-                  </button>
-                </div>
+              <div className="field">
+                <label>Or exact address</label>
+                <AddressInput
+                  placeholder="555 Market St, San Francisco"
+                  onSelect={(place) => { setCustomPt(place); setThemKey(''); setDraftOverride(null); }}
+                  ariaLabel="Their exact address"
+                />
+                {customPt && <div style={{ fontSize: 11.5, color: 'var(--ok)', marginTop: 4 }}>✓ {customPt.name}</div>}
               </div>
               <div className="field">
                 <label>Length</label>

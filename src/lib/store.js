@@ -2,10 +2,22 @@
 // Calendar sync swaps in live events. Components subscribe via useSyncExternalStore.
 import { EVENTS as SNAPSHOT, SYNCED_AT } from '../data/events.js';
 
+// Last successful sync is cached locally so a reload (or an expired Google
+// token) still shows the calendar instantly — reconnecting only refreshes it.
+const EV_LS = 'laze-events-cache';
+function loadCachedEvents() {
+  try {
+    const c = JSON.parse(localStorage.getItem(EV_LS) || 'null');
+    if (c && Array.isArray(c.events) && c.events.length) return c;
+  } catch { /* corrupt cache */ }
+  return null;
+}
+const cached = loadCachedEvents();
+
 let state = {
-  events: SNAPSHOT,
-  source: SNAPSHOT.length ? 'snapshot' : 'empty', // 'snapshot' | 'live' | 'empty'
-  syncedAt: SYNCED_AT,
+  events: cached ? cached.events : SNAPSHOT,
+  source: cached ? 'live' : SNAPSHOT.length ? 'snapshot' : 'empty', // 'snapshot' | 'live' | 'empty'
+  syncedAt: cached ? cached.at : SYNCED_AT,
   syncing: false,
   error: null,
   version: 0,
@@ -31,10 +43,12 @@ export function setSyncing(on) {
 }
 
 export function setLiveEvents(events) {
+  const at = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  try { localStorage.setItem(EV_LS, JSON.stringify({ events, at })); } catch { /* full */ }
   emit({
     events,
     source: 'live',
-    syncedAt: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    syncedAt: at,
     syncing: false,
     error: null,
   });
@@ -45,6 +59,7 @@ export function setSyncError(msg) {
 }
 
 export function resetToSnapshot() {
+  try { localStorage.removeItem(EV_LS); } catch { /* ignore */ }
   emit({ events: SNAPSHOT, source: SNAPSHOT.length ? 'snapshot' : 'empty', syncedAt: SYNCED_AT, error: null });
 }
 

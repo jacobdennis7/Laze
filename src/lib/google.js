@@ -118,6 +118,9 @@ async function normalizeAll(rows, tz) {
     const locIsUrl = VIRTUAL_RE.test(locText) && !/,/.test(locText);
     const virtual = (hasConf && !locText) || locIsUrl;
     const kind = FLIGHT_RE.test(title) ? 'flight' : HOLD_RE.test(title) ? 'hold' : 'meeting';
+    // Solo events (no other human attendees) are time blocks / reminders, not
+    // meetings — they don't need a venue and must never raise location warnings.
+    const solo = !(item.attendees || []).some((a) => !a.self && !a.resource);
 
     // "TBD", "IRL - somewhere", etc. are placeholders, not addresses — never geocode
     // them (Nominatim will happily match "TBD" to a real town somewhere on Earth).
@@ -128,7 +131,7 @@ async function normalizeAll(rows, tz) {
       venueKey = matchKnownVenue(locText);
       if (!venueKey) geo = await geocode(locText);
     }
-    const tbd = !virtual && kind !== 'flight' && (!locText || locIsUrl || isPlaceholder || (!venueKey && !geo));
+    const tbd = !virtual && kind !== 'flight' && !solo && (!locText || locIsUrl || isPlaceholder || (!venueKey && !geo));
 
     out.push({
       id: item.id,
@@ -145,6 +148,7 @@ async function normalizeAll(rows, tz) {
       locationText: locText || undefined,
       virtual: virtual || undefined,
       tbd: tbd || undefined,
+      solo: solo || undefined,
       kind,
       live: true,
     });

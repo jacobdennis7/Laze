@@ -5,7 +5,7 @@ import { findConflicts, dayLegs } from './lib/schedule.js';
 import { subscribe, getState, loadSettings, saveSettings, setSyncing, setLiveEvents, setSyncError } from './lib/store.js';
 import { fetchRange, isConnected, connect, listCalendars } from './lib/google.js';
 import { warmLegs, subscribeRoutes, routesVersion } from './lib/routes.js';
-import { subscribePrefs, prefsVersion } from './lib/prefs.js';
+import { subscribePrefs, prefsVersion, getPlaces } from './lib/prefs.js';
 import SpotSuggestModal from './components/SpotSuggestModal.jsx';
 import TravelBlockModal from './components/TravelBlockModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
@@ -72,8 +72,20 @@ export default function App() {
   async function doSync(settings) {
     const s = settings || loadSettings();
     if (!isConnected()) {
-      setShowSettings(true);
-      return;
+      // Token expired: this runs from a click, so a silent reconnect (which
+      // reuses the Google session) is allowed to open its popup. Only fall
+      // back to the settings panel if that fails.
+      if (s.clientId && s.wasConnected) {
+        try {
+          await connect(s.clientId, { silent: true });
+        } catch {
+          setShowSettings(true);
+          return;
+        }
+      } else {
+        setShowSettings(true);
+        return;
+      }
     }
     setSyncing(true);
     try {
@@ -84,7 +96,14 @@ export default function App() {
         tz: s.tz,
       });
       setLiveEvents(events);
-      if (!s.wasConnected) saveSettings({ ...s, wasConnected: true });
+      const firstConnect = !s.wasConnected;
+      if (firstConnect) saveSettings({ ...s, wasConnected: true });
+      // Fresh users don't know the Connections panel exists — after the first
+      // successful sync, open it so they set home base, office, and favorites.
+      const p = getPlaces();
+      if (firstConnect && !p.home && !p.office && p.favorites.length === 0) {
+        setShowSettings(true);
+      }
     } catch (e) {
       setSyncError(e.message);
     }

@@ -453,6 +453,29 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 .leg-chip-label.search-link span { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+
+/* reusable address autocomplete */
+.addr-input { position: relative; }
+.addr-input input {
+  width: 100%; border: 1px solid var(--hairline-2); border-radius: 8px; padding: 9px 11px;
+  font-family: inherit; font-size: 13.5px; background: var(--surface); color: var(--ink);
+}
+.addr-input input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.addr-spin { position: absolute; right: 10px; top: 9px; color: var(--muted); }
+.addr-results {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1600;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 10px; box-shadow: var(--shadow); overflow: hidden;
+  max-height: 240px; overflow-y: auto;
+}
+.addr-results button {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  padding: 8px 12px; font-family: inherit; border-bottom: 1px solid var(--hairline); cursor: pointer;
+}
+.addr-results button:last-child { border-bottom: none; }
+.addr-results button:hover { background: #f2f6fd; }
+.placement-other .addr-input { min-width: 220px; }
+.placement-other .addr-input input { font-size: 12px; padding: 5px 8px; }
 .search-area {
   position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
   z-index: 900; box-shadow: var(--shadow); font-size: 13px;

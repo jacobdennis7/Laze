@@ -2,36 +2,33 @@ import React, { useState } from 'react';
 import { loadSettings, saveSettings, getState, resetToSnapshot } from '../lib/store.js';
 import { connect, listCalendars, isConnected } from '../lib/google.js';
 import { testRoutesKey } from '../lib/routes.js';
-import { getPlaces, setBasePlace, setVirtualDefault, addFavorite, removeFavorite } from '../lib/prefs.js';
+import { getPlaces, setBaseGeo, setVirtualDefault, addFavoriteGeo, removeFavorite } from '../lib/prefs.js';
+import AddressInput from './AddressInput.jsx';
 
 function BaseField({ kind, label, placeholder }) {
-  const places = getPlaces();
-  const cur = places[kind];
-  const [addr, setAddr] = useState(cur ? cur.address : '');
-  const [state, setState] = useState(cur ? 'ok' : 'idle');
   const [, force] = useState(0);
-
-  async function save() {
-    setState('loading');
-    try {
-      await setBasePlace(kind, addr);
-      setState(addr.trim() ? 'ok' : 'idle');
-      force((n) => n + 1);
-    } catch {
-      setState('miss');
-    }
-  }
+  const cur = getPlaces()[kind];
 
   return (
     <div className="field">
       <label>{label}</label>
-      <div className="field-row" style={{ alignItems: 'center' }}>
-        <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder={placeholder} style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && save()} />
-        <button className="pill-btn" onClick={save} disabled={state === 'loading'}>
-          {state === 'loading' ? '…' : state === 'ok' ? 'Saved ✓' : state === 'miss' ? 'Not found' : 'Save'}
-        </button>
-      </div>
-      {cur && state === 'ok' && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>{cur.name} · {cur.hood}</div>}
+      <AddressInput
+        placeholder={placeholder}
+        initial={cur ? cur.address : ''}
+        onSelect={(place) => { setBaseGeo(kind, place); force((n) => n + 1); }}
+        ariaLabel={label}
+      />
+      {cur && (
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span>✓ {cur.name} · {cur.hood}</span>
+          <button
+            style={{ all: 'unset', cursor: 'pointer', color: 'var(--alert)', fontSize: 11 }}
+            onClick={() => { setBaseGeo(kind, null); force((n) => n + 1); }}
+          >
+            clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -45,21 +42,18 @@ const CATS = [
 function FavoritesEditor() {
   const [, force] = useState(0);
   const [name, setName] = useState('');
-  const [addr, setAddr] = useState('');
   const [cat, setCat] = useState('coffee');
-  const [state, setState] = useState('idle');
+  const [pending, setPending] = useState(null); // resolved place awaiting Add
+  const [inputKey, setInputKey] = useState(0); // remounts AddressInput to clear it
   const favs = getPlaces().favorites;
 
-  async function add() {
-    if (!addr.trim()) return;
-    setState('loading');
-    try {
-      await addFavorite({ name, address: addr, category: cat });
-      setName(''); setAddr(''); setState('idle');
-      force((n) => n + 1);
-    } catch {
-      setState('miss');
-    }
+  function add() {
+    if (!pending) return;
+    addFavoriteGeo({ name, category: cat, place: pending });
+    setName('');
+    setPending(null);
+    setInputKey((k) => k + 1);
+    force((n) => n + 1);
   }
 
   return (
@@ -77,12 +71,13 @@ function FavoritesEditor() {
           {CATS.map(([c, l]) => <option key={c} value={c}>{l}</option>)}
         </select>
       </div>
-      <div className="field-row" style={{ marginTop: 6, alignItems: 'center' }}>
-        <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && add()} />
-        <button className="pill-btn" onClick={add} disabled={state === 'loading'}>
-          {state === 'loading' ? '…' : state === 'miss' ? 'Not found' : '＋ Add'}
-        </button>
+      <div className="field-row" style={{ marginTop: 6, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          <AddressInput key={inputKey} placeholder="Search a place or address…" onSelect={setPending} ariaLabel="Favorite spot address" />
+        </div>
+        <button className="pill-btn" onClick={add} disabled={!pending}>＋ Add</button>
       </div>
+      {pending && <div style={{ fontSize: 11.5, color: 'var(--ok)', marginTop: 4 }}>✓ {pending.name} · {pending.hood}</div>}
     </div>
   );
 }

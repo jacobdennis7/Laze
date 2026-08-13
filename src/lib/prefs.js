@@ -1,6 +1,6 @@
 // User places & preferences: home base, office, favorite spots, and per-event
-// placements for virtual meetings. All localStorage; geocoded once via Nominatim.
-import { geocode } from './google.js';
+// placements for virtual meetings. All localStorage; addresses arrive
+// pre-resolved from the AddressInput autocomplete.
 
 const LS = 'laze-places';
 let cache = null;
@@ -34,19 +34,11 @@ export function getPlaces() {
   return { home: p.home || null, office: p.office || null, virtualDefault: p.virtualDefault, favorites: p.favorites };
 }
 
-// kind: 'home' | 'office'. Returns geo or throws with a friendly message.
-export async function setBasePlace(kind, address) {
+// kind: 'home' | 'office'. Place comes pre-resolved from the autocomplete.
+export function setBaseGeo(kind, place) {
   load();
-  if (!address?.trim()) {
-    cache[kind] = null;
-    save();
-    return null;
-  }
-  const geo = await geocode(address.trim());
-  if (!geo) throw new Error(`Couldn't find “${address}” — try adding city + state`);
-  cache[kind] = { ...geo, label: kind === 'home' ? 'Home' : 'Office' };
+  cache[kind] = place ? { ...place, label: kind === 'home' ? 'Home' : 'Office' } : null;
   save();
-  return cache[kind];
 }
 
 export function setVirtualDefault(v) {
@@ -56,11 +48,17 @@ export function setVirtualDefault(v) {
 }
 
 // ---- favorites: { id, name, address, category: 'coffee'|'lunch'|'dinner', lat, lng } ----
-export async function addFavorite({ name, address, category }) {
+export function addFavoriteGeo({ name, category, place }) {
   load();
-  const geo = await geocode(address.trim());
-  if (!geo) throw new Error(`Couldn't find “${address}”`);
-  cache.favorites.push({ id: `fav${Date.now()}`, name: name.trim() || geo.name, address: geo.address, category, lat: geo.lat, lng: geo.lng, hood: geo.hood });
+  cache.favorites.push({
+    id: `fav${Date.now()}`,
+    name: (name || '').trim() || place.name,
+    address: place.address,
+    category,
+    lat: place.lat,
+    lng: place.lng,
+    hood: place.hood,
+  });
   save();
 }
 
@@ -83,11 +81,9 @@ export function setPlacement(evId, placement) {
   save();
 }
 
-export async function setPlacementOther(evId, address) {
+export function setPlacementGeo(evId, place) {
   load();
-  const geo = await geocode(address.trim());
-  if (!geo) throw new Error(`Couldn't find “${address}”`);
-  cache.placements[evId] = { type: 'other', geo };
+  cache.placements[evId] = { type: 'other', geo: place };
   save();
 }
 
