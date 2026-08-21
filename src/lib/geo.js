@@ -90,40 +90,65 @@ const G_TYPE = (types = [], primary = '') => {
   return 'restaurant';
 };
 
+// Places caps searchNearby at 20 results per call — fan out one request per
+// category and merge, so a dense area shows up to ~60 spots instead of 20.
+const NEARBY_GROUPS = [
+  ['cafe', 'coffee_shop', 'bakery'],
+  ['restaurant'],
+  ['bar', 'pub', 'wine_bar'],
+];
+
 async function googleNearby(bounds, key) {
   const c = bounds.getCenter();
-  // radius that covers the visible area, capped at Places' 2km sweet spot
   const radius = Math.min(
-    2000,
+    2500,
     Math.max(300, (haversineKm(
       { lat: bounds.getSouth(), lng: bounds.getWest() },
       { lat: bounds.getNorth(), lng: bounds.getEast() }
     ) * 1000) / 2)
   );
-  const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'places.displayName,places.location,places.primaryType,places.types,places.shortFormattedAddress,places.rating',
-    },
-    body: JSON.stringify({
-      includedTypes: ['cafe', 'coffee_shop', 'restaurant', 'bar'],
-      maxResultCount: 20,
-      locationRestriction: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius } },
-    }),
-  });
-  if (!r.ok) throw new Error(`Places ${r.status}`);
-  const js = await r.json();
-  return (js.places || []).map((p, i) => ({
-    id: `g${i}`,
-    name: p.displayName?.text || 'Unnamed',
-    type: G_TYPE(p.types, p.primaryType),
-    cuisine: p.rating ? `★ ${p.rating}` : null,
-    address: p.shortFormattedAddress || null,
-    lat: p.location.latitude,
-    lng: p.location.longitude,
-  }));
+
+  const one = async (includedTypes) => {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.displayName,places.location,places.primaryType,places.types,places.shortFormattedAddress,places.rating',
+      },
+      body: JSON.stringify({
+        includedTypes,
+        maxResultCount: 20,
+        locationRestriction: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius } },
+      }),
+    });
+    if (!r.ok) throw new Error(`Places ${r.status}`);
+    return ((await r.json()).places || []);
+  };
+
+  const settled = await Promise.allSettled(NEARBY_GROUPS.map(one));
+  if (settled.every((s) => s.status === 'rejected')) throw new Error('Places unavailable');
+
+  const seen = new Set();
+  const out = [];
+  for (const s of settled) {
+    if (s.status !== 'fulfilled') continue;
+    for (const p of s.value) {
+      const dedupe = `${p.displayName?.text}|${p.location.latitude.toFixed(5)}`;
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      out.push({
+        id: `g${out.length}`,
+        name: p.displayName?.text || 'Unnamed',
+        type: G_TYPE(p.types, p.primaryType),
+        cuisine: p.rating ? `★ ${p.rating}` : null,
+        address: p.shortFormattedAddress || null,
+        lat: p.location.latitude,
+        lng: p.location.longitude,
+      });
+    }
+  }
+  return out;
 }
 
 async function overpassNearby(bounds) {

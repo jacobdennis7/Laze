@@ -94,6 +94,7 @@ export default function App() {
         timeMin: `${addDays(range.start, -7)}T00:00:00Z`,
         timeMax: `${addDays(range.end, 21)}T00:00:00Z`,
         tz: s.tz,
+        mapsKey: s.mapsKey || null,
       });
       setLiveEvents(events);
       const firstConnect = !s.wasConnected;
@@ -154,13 +155,13 @@ export default function App() {
         <RangePicker range={range} onChange={changeRange} />
 
         <div className="seg" role="tablist" aria-label="View">
-          <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')} role="tab" aria-selected={view === 'map'}>
+          <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')} role="tab" aria-selected={view === 'map'} aria-label="Map view">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6" /><line x1="8" y1="3" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="21" /></svg>
-            Map
+            <span className="btn-label">Map</span>
           </button>
-          <button className={view === 'cal' ? 'on' : ''} onClick={() => setView('cal')} role="tab" aria-selected={view === 'cal'}>
+          <button className={view === 'cal' ? 'on' : ''} onClick={() => setView('cal')} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="9" y1="10" x2="9" y2="22" /><line x1="15" y1="10" x2="15" y2="22" /></svg>
-            Calendar
+            <span className="btn-label">Calendar</span>
           </button>
         </div>
 
@@ -174,15 +175,15 @@ export default function App() {
 
         <button className="pill-btn" onClick={() => doSync()} disabled={store.syncing} title={isConnected() ? 'Re-pull events from Google Calendar' : 'Connect Google Calendar'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={store.syncing ? 'spin' : ''}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
-          {store.syncing ? 'Syncing…' : 'Sync'}
+          <span className="btn-label">{store.syncing ? 'Syncing…' : 'Sync'}</span>
         </button>
-        <button className="pill-btn" onClick={() => setShowConflicts(true)}>
+        <button className="pill-btn" onClick={() => setShowConflicts(true)} aria-label={`${conflicts.length} conflicts`}>
           <span className={`badge${conflicts.length === 0 ? ' zero' : ''}`}>{conflicts.length}</span>
-          Conflicts
+          <span className="btn-label">Conflicts</span>
         </button>
-        <button className="pill-btn primary" onClick={() => setShowSuggest(true)}>
+        <button className="pill-btn primary" onClick={() => setShowSuggest(true)} aria-label="Suggest times">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.8 2.8M16.2 16.2L19 19M19 5l-2.8 2.8M7.8 16.2L5 19" /></svg>
-          Suggest
+          <span className="btn-label">Suggest</span>
         </button>
       </header>
 
@@ -230,7 +231,10 @@ export default function App() {
               <button className="pill-btn primary" onClick={onboardConnect}>
                 Connect Google Calendar
               </button>
-              <p className="fine">Read-only access · your data stays in this browser</p>
+              <p className="fine">
+                Read-only access · your data stays in this browser ·{' '}
+                <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy</a>
+              </p>
             </div>
           </div>
         )}

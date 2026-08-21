@@ -11,6 +11,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Laze</title>
+    <script>
+      // Vercel Web Analytics — only on the production domain (needs the
+      // "Web Analytics" toggle enabled in the Vercel project dashboard).
+      if (location.hostname.endsWith('laze.to')) {
+        var va = document.createElement('script');
+        va.defer = true;
+        va.src = '/_vercel/insights/script.js';
+        document.head.appendChild(va);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

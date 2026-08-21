@@ -575,7 +575,17 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
     width: min(94vw, 340px); max-height: calc(100dvh - 84px); overflow-y: auto;
   }
 
-  .pill-btn { padding: 7px 12px; }
-  .seg button { padding: 7px 12px; }
+  /* compact header: icons carry the meaning, labels hide, target = 2 rows */
+  .btn-label { display: none; }
+  .pill-btn { padding: 8px 11px; }
+  .seg button { padding: 8px 11px; }
+  .mode-seg button { padding: 7px 9px; font-size: 13px; }
+  .range-btn { padding: 7px 13px; font-size: 13px; }
+  .range-btn .nights { display: none; }
+  .src-chip { font-size: 10.5px; padding: 2px 8px; }
+  .topbar { gap: 6px; padding: 8px 10px 6px; }
+
+  /* iOS zooms the page when a focused input is under 16px — never let that happen */
+  input, select, textarea { font-size: 16px !important; }
 }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }

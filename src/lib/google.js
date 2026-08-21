@@ -74,7 +74,7 @@ export async function listCalendars() {
   return (js.items || []).map((c) => ({ id: c.id, label: c.summaryOverride || c.summary, primary: !!c.primary }));
 }
 
-export async function fetchRange({ calendarIds, timeMin, timeMax, tz }) {
+export async function fetchRange({ calendarIds, timeMin, timeMax, tz, mapsKey = null }) {
   const all = [];
   for (const calId of calendarIds) {
     let pageToken;
@@ -92,7 +92,7 @@ export async function fetchRange({ calendarIds, timeMin, timeMax, tz }) {
       pageToken = js.nextPageToken;
     } while (pageToken);
   }
-  return normalizeAll(all, tz);
+  return normalizeAll(all, tz, mapsKey);
 }
 
 // ---------- normalization ----------
@@ -102,7 +102,7 @@ const TBD_RE = /\btbd\b|somewhere|to be|irl\s*-|in person\s*-/i;
 const FLIGHT_RE = /\bflight\b|✈|airlines?\b|\b(UA|AA|DL|B6|WN|AS)\s?\d{2,4}\b/i;
 const HOLD_RE = /\bhold\b|\bmaybe\b|tentative/i;
 
-async function normalizeAll(rows, tz) {
+async function normalizeAll(rows, tz, mapsKey = null) {
   const out = [];
   for (const { item, calId } of rows) {
     if (item.status === 'cancelled' || item.eventType === 'workingLocation' || item.eventType === 'birthday') continue;
@@ -129,7 +129,7 @@ async function normalizeAll(rows, tz) {
     let geo = null;
     if (locText && !locIsUrl && !isPlaceholder) {
       venueKey = matchKnownVenue(locText);
-      if (!venueKey) geo = await geocode(locText);
+      if (!venueKey) geo = await geocode(locText, mapsKey);
     }
     const tbd = !virtual && kind !== 'flight' && !solo && (!locText || locIsUrl || isPlaceholder || (!venueKey && !geo));
 
@@ -177,11 +177,52 @@ function guessOrg(item) {
   return undefined;
 }
 
-// ---------- geocoding (Nominatim, cached, throttled) ----------
+// ---------- geocoding (Places Text Search first, Nominatim fallback; cached) ----------
 
-const GEO_LS = 'laze-geocache';
+// v2: v1 cached failures for messy strings the old resolver couldn't handle.
+const GEO_LS = 'laze-geocache-v2';
 let geoCache = null;
 let lastGeo = 0;
+
+const hoodFromAddress = (addr) => {
+  const parts = (addr || '').split(',').map((s) => s.trim());
+  return parts.slice(1).find((p) => p && !/^\d+[\w-]*$/.test(p)) || '—';
+};
+
+// Google Places handles human location strings ("OL'DAYS Farm to Table - Tribeca
+// (73 Warren St...)") far better than pure geocoders.
+async function placesTextSearch(q, key) {
+  const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location',
+    },
+    body: JSON.stringify({ textQuery: q, maxResultCount: 1 }),
+  });
+  if (!r.ok) throw new Error(`TextSearch ${r.status}`);
+  const p = (await r.json()).places?.[0];
+  if (!p) return null;
+  return {
+    name: p.displayName?.text || q.split(/[(,\-–]/)[0].trim(),
+    address: p.formattedAddress || q,
+    lat: p.location.latitude,
+    lng: p.location.longitude,
+    hood: hoodFromAddress(p.formattedAddress),
+  };
+}
+
+// Noisy strings → plausible address candidates for the OSM fallback:
+// full string, any parenthesized part, and the substring from the first digit.
+function addressCandidates(locText) {
+  const out = [locText];
+  const paren = locText.match(/\(([^)]{8,})\)/);
+  if (paren) out.push(paren[1]);
+  const digit = locText.match(/\d.*$/s);
+  if (digit && digit[0].length >= 8 && digit[0] !== locText) out.push(digit[0].replace(/\)+\s*$/, ''));
+  return [...new Set(out.map((s) => s.trim()))];
+}
 
 function loadGeoCache() {
   if (!geoCache) {
@@ -196,31 +237,41 @@ function loadGeoCache() {
   return geoCache;
 }
 
-export async function geocode(locText) {
+export async function geocode(locText, mapsKey = null) {
   const cache = loadGeoCache();
   const key = locText.toLowerCase().slice(0, 120);
-  if (key in cache) return cache[key];
-
-  // polite throttle: 1 req/sec
-  const wait = Math.max(0, lastGeo + 1100 - Date.now());
-  if (wait) await new Promise((r) => setTimeout(r, wait));
-  lastGeo = Date.now();
+  if (key in cache && cache[key] !== null) return cache[key];
 
   let result = null;
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(locText)}`);
-    const js = await r.json();
-    if (js[0]) {
-      const a = js[0].address || {};
-      result = {
-        name: locText.split(',')[0],
-        address: locText,
-        lat: +js[0].lat,
-        lng: +js[0].lon,
-        hood: a.neighbourhood || a.suburb || a.quarter || a.city_district || a.city || '—',
-      };
+
+  if (mapsKey) {
+    try { result = await placesTextSearch(locText, mapsKey); } catch { /* fall through to OSM */ }
+  }
+
+  if (!result) {
+    for (const candidate of addressCandidates(locText)) {
+      // polite throttle: 1 req/sec against Nominatim
+      const wait = Math.max(0, lastGeo + 1100 - Date.now());
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      lastGeo = Date.now();
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(candidate)}`);
+        const js = await r.json();
+        if (js[0]) {
+          const a = js[0].address || {};
+          result = {
+            name: locText.split(/[(,\-–]/)[0].trim() || candidate.split(',')[0],
+            address: candidate,
+            lat: +js[0].lat,
+            lng: +js[0].lon,
+            hood: a.neighbourhood || a.suburb || a.quarter || a.city_district || a.city || '—',
+          };
+          break;
+        }
+      } catch { /* offline or blocked — try next candidate */ }
     }
-  } catch { /* offline or blocked — treat as unresolved */ }
+  }
+
   cache[key] = result;
   try { localStorage.setItem(GEO_LS, JSON.stringify(cache)); } catch { /* full */ }
   return result;
