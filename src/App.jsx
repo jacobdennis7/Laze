@@ -232,17 +232,25 @@ export default function App() {
         {isEmpty && (
           <div className="onboard">
             <div className="onboard-card">
+              <h1 className="onboard-name">Laze</h1>
               <h2>Your week, on a map</h2>
               <p>
-                Laze pulls your Google Calendar, places every meeting on the map, computes travel time
-                between them, flags conflicts, and suggests times &amp; spots when someone asks to meet.
+                Laze is a scheduling assistant. It connects to your Google Calendar (read-only) and
+                places every meeting on a map so you can see your day the way you'll actually move
+                through it.
               </p>
+              <ul className="onboard-feats">
+                <li>Travel time between back-to-back meetings, with conflicts flagged before they burn you</li>
+                <li>Cafés, restaurants &amp; bars near wherever you'll already be</li>
+                <li>"When &amp; where works" suggestions when someone asks to meet</li>
+              </ul>
               <button className="pill-btn primary" onClick={onboardConnect}>
                 Connect Google Calendar
               </button>
               <p className="fine">
-                Read-only access · your data stays in this browser ·{' '}
-                <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy</a>
+                Read-only access · your data stays in this browser — nothing is stored on a server ·{' '}
+                <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a> ·{' '}
+                <a href="mailto:jacobadennis@gmail.com">Contact</a>
               </p>
             </div>
           </div>
