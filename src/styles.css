@@ -550,6 +550,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   color: var(--ink-2); font-size: 13.5px; line-height: 1.55;
 }
 .onboard-feats li { margin-bottom: 6px; }
+/* floating controls stay beneath the onboarding overlay */
+.main:has(.onboard) .itin-fab { display: none; }
+.onboard-card { max-height: calc(100dvh - 40px); overflow-y: auto; }
 .onboard-card .pill-btn { margin: 0 auto; }
 .onboard-card .fine { margin: 12px 0 0; font-size: 11.5px; color: var(--muted); }
 .main { position: relative; }
