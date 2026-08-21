@@ -26,6 +26,20 @@
     </script>
   </head>
   <body>
+    <!-- Static landing content: real HTML for crawlers and pre-JS paint.
+         React removes this node the moment the app mounts. -->
+    <div id="static-landing" style="max-width:560px;margin:80px auto;padding:0 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c1e21;line-height:1.6">
+      <h1 style="color:#2B3BE2;font-size:34px;margin-bottom:4px">Laze</h1>
+      <h2 style="font-size:20px;margin:0 0 12px">Your week, on a map</h2>
+      <p>Laze is a scheduling assistant. It connects to your Google Calendar with read-only access
+      and places every meeting on a map, so you can see your day the way you'll actually move
+      through it: travel time between back-to-back meetings, conflict warnings before they burn
+      you, nearby cafés and restaurants for your next meeting, and suggestions for when and where
+      to meet when someone asks for time.</p>
+      <p>Your calendar data is processed entirely in your browser and is never stored on a server.</p>
+      <p><a href="/privacy.html" style="color:#1a73e8">Privacy Policy</a> ·
+         <a href="mailto:jacobadennis@gmail.com" style="color:#1a73e8">Contact</a></p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
