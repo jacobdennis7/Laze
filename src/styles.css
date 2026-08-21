@@ -48,7 +48,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   z-index: 1200;
 }
 .brand { display: flex; align-items: center; gap: 8px; margin-right: 4px; }
-.brand .logo { font-weight: 750; font-size: 17px; letter-spacing: -0.02em; }
+.brand .logo { display: inline-flex; align-items: center; }
+.logo-glyph { width: 30px; height: 30px; margin-right: -7px; transform: translateY(-2px); }
+.logo-text {
+  font-family: 'Varela Round', ui-rounded, -apple-system, sans-serif;
+  font-size: 21.5px; color: #2B3BE2; letter-spacing: -0.01em;
+  line-height: 1; padding-bottom: 2px;
+}
+.topbar-break { display: none; }
 .src-chip {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11.5px; color: var(--muted);
@@ -575,7 +582,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
     width: min(94vw, 340px); max-height: calc(100dvh - 84px); overflow-y: auto;
   }
 
-  /* compact header: icons carry the meaning, labels hide, target = 2 rows */
+  /* compact header: icons carry the meaning, labels hide, exactly 2 rows —
+     the break pins row 1 = brand + chip + range, row 2 = all controls */
+  .topbar-break { display: block; flex-basis: 100%; height: 0; }
   .btn-label { display: none; }
   .pill-btn { padding: 8px 11px; }
   .seg button { padding: 8px 11px; }

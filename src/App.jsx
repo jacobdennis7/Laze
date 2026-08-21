@@ -145,7 +145,14 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">Laze</span>
+          <span className="logo" aria-label="Laze">
+            <svg className="logo-glyph" viewBox="0 0 96 96" aria-hidden="true">
+              <path d="M27 40 L27 60 Q27 71 38 71 L50 71" fill="none" stroke="#2B3BE2" strokeWidth="11" strokeLinecap="round" />
+              <circle cx="27" cy="24" r="12" fill="none" stroke="#2B3BE2" strokeWidth="9.5" />
+              <circle cx="65" cy="71" r="10.5" fill="none" stroke="#2B3BE2" strokeWidth="8.5" />
+            </svg>
+            <span className="logo-text">aze</span>
+          </span>
           <button className="src-chip" onClick={() => setShowSettings(true)} title="Data source — click to manage connections">
             <span className={`dot ${store.source}`} />
             {syncLabel}
@@ -153,6 +160,8 @@ export default function App() {
         </div>
 
         <RangePicker range={range} onChange={changeRange} />
+
+        <div className="topbar-break" aria-hidden="true" />
 
         <div className="seg" role="tablist" aria-label="View">
           <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')} role="tab" aria-selected={view === 'map'} aria-label="Map view">
