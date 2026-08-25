@@ -27,16 +27,20 @@
   Google's product, under your account.</p>
 
   <h2>Where your data lives</h2>
-  <p>Laze has no server and no database. Your calendar events, sign-in token, home/office addresses, and
-  favorite spots are stored only in your own browser (localStorage) on your own device. Nothing is
-  transmitted to us, and we could not read it if we wanted to. Clearing your browser data removes
-  everything.</p>
+  <p>Laze has no database. Your calendar events, home/office addresses, and favorite spots are stored
+  only in your own browser (localStorage) on your own device. When you sign in, your Google sign-in
+  credential (a refresh token) is encrypted and stored in a secure cookie on your device; our server
+  uses it transiently to obtain short-lived access tokens from Google and never stores it, your
+  calendar data, or anything else about you. Clearing your browser data and cookies removes
+  everything, and you can revoke access at any time (see below).</p>
 
   <h2>Third-party services</h2>
   <p>Your browser talks directly to: Google (Calendar API, and optionally the Places and Routes APIs for
   nearby spots and live travel times), OpenStreetMap services (map tiles via CARTO, geocoding via
   Nominatim, places via Overpass). Each receives only what is necessary to answer the request (for
-  example, map coordinates), governed by their own privacy policies.</p>
+  example, map coordinates), governed by their own privacy policies. If you paste a public scheduling
+  link (for example, Calendly) into the Suggest feature, our server fetches that page's public
+  availability on your behalf and returns it to your browser; nothing from that request is stored.</p>
 
   <h2>Google API disclosure</h2>
   <p>Laze's use and transfer of information received from Google APIs adheres to the

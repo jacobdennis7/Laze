@@ -3,7 +3,7 @@ import { DEFAULT_RANGE } from './data/events.js';
 import { eachDay, fmtDayShort, addDays } from './lib/time.js';
 import { findConflicts, dayLegs } from './lib/schedule.js';
 import { subscribe, getState, loadSettings, saveSettings, setSyncing, setLiveEvents, setSyncError } from './lib/store.js';
-import { fetchRange, isConnected, connect, listCalendars } from './lib/google.js';
+import { fetchRange, isConnected, connect, listCalendars, serverAuthEnabled, serverToken, serverLogin } from './lib/google.js';
 import { warmLegs, subscribeRoutes, routesVersion } from './lib/routes.js';
 import { subscribePrefs, prefsVersion, getPlaces } from './lib/prefs.js';
 import SpotSuggestModal from './components/SpotSuggestModal.jsx';
@@ -56,26 +56,40 @@ export default function App() {
     setActiveDay(r.start);
   }
 
-  // Returning users: a stored token (< 1h old) syncs immediately with zero clicks;
-  // past expiry, a silent reconnect reuses the Google session where possible.
+  // Returning users sync with zero clicks. Server auth (deployed): the encrypted
+  // session cookie mints a fresh token — works for months. Dev fallback: GIS.
   useEffect(() => {
-    const s = loadSettings();
-    if (!s.clientId || !s.wasConnected) return;
-    if (isConnected()) {
-      doSync(s);
-    } else {
-      connect(s.clientId, { silent: true }).then(() => doSync(s)).catch(() => { /* they'll click Sync */ });
-    }
+    (async () => {
+      const s = loadSettings();
+      if (serverAuthEnabled) {
+        const justConnected = new URLSearchParams(window.location.search).has('connected');
+        if (justConnected) window.history.replaceState({}, '', '/');
+        if (await serverToken()) {
+          doSync(s);
+          return;
+        }
+        if (justConnected) return; // callback landed but token failed — leave disconnected
+      }
+      if (!s.clientId || !s.wasConnected) return;
+      if (isConnected()) {
+        doSync(s);
+      } else if (!serverAuthEnabled) {
+        connect(s.clientId, { silent: true }).then(() => doSync(s)).catch(() => { /* they'll click Sync */ });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function doSync(settings) {
     const s = settings || loadSettings();
     if (!isConnected()) {
-      // Token expired: this runs from a click, so a silent reconnect (which
-      // reuses the Google session) is allowed to open its popup. Only fall
-      // back to the settings panel if that fails.
-      if (s.clientId && s.wasConnected) {
+      if (serverAuthEnabled) {
+        // Try the cookie session first; if there is none, do the redirect sign-in.
+        if (!(await serverToken())) {
+          serverLogin();
+          return;
+        }
+      } else if (s.clientId && s.wasConnected) {
         try {
           await connect(s.clientId, { silent: true });
         } catch {
@@ -114,6 +128,10 @@ export default function App() {
   // onboarding button goes straight to the Google popup; settings only on failure.
   async function onboardConnect() {
     const s = loadSettings();
+    if (serverAuthEnabled) {
+      serverLogin();
+      return;
+    }
     if (!s.clientId) {
       setShowSettings(true);
       return;

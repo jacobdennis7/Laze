@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { loadSettings, saveSettings, getState, resetToSnapshot } from '../lib/store.js';
-import { connect, listCalendars, isConnected } from '../lib/google.js';
+import { connect, listCalendars, isConnected, serverAuthEnabled, serverLogin } from '../lib/google.js';
 import { testRoutesKey } from '../lib/routes.js';
 import { getPlaces, setBaseGeo, setVirtualDefault, addFavoriteGeo, removeFavorite } from '../lib/prefs.js';
 import AddressInput from './AddressInput.jsx';
@@ -110,7 +110,14 @@ export default function SettingsModal({ onClose, onSync }) {
     setErr(null);
     setBusy(true);
     try {
-      await connect(s.clientId.trim());
+      if (serverAuthEnabled) {
+        if (!isConnected()) {
+          serverLogin(); // full-page redirect; we never return here
+          return;
+        }
+      } else {
+        await connect(s.clientId.trim());
+      }
       const list = await listCalendars();
       setCals(list);
       if (!s.calendars) {

@@ -23,6 +23,37 @@ try {
   }
 } catch { /* ignore */ }
 
+// ---- server auth (authorization-code flow via /api, deployed builds) ----
+// Redirect-based sign-in with an encrypted refresh-token cookie: no popups,
+// no hourly re-login. Dev builds (vite only, no /api) fall back to GIS below.
+export const serverAuthEnabled = !import.meta.env.DEV;
+
+export function serverLogin() {
+  window.location.href = '/api/auth/login';
+}
+
+export async function serverToken() {
+  try {
+    const r = await fetch('/api/auth/token', { method: 'POST' });
+    if (!r.ok) return false;
+    const js = await r.json();
+    if (!js.access_token) return false;
+    accessToken = js.access_token;
+    tokenExpiry = Date.now() + (js.expires_in || 3600) * 1000;
+    try { localStorage.setItem(TOKEN_LS, JSON.stringify({ token: accessToken, exp: tokenExpiry })); } catch { /* full */ }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function serverLogout() {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* offline */ }
+  accessToken = null;
+  tokenExpiry = 0;
+  try { localStorage.removeItem(TOKEN_LS); } catch { /* ignore */ }
+}
+
 function loadGsi() {
   if (gsiLoaded) return gsiLoaded;
   gsiLoaded = new Promise((resolve, reject) => {
@@ -62,6 +93,10 @@ export async function connect(clientId, { silent = false } = {}) {
 }
 
 async function gapi(path, params = {}) {
+  // With server auth, transparently refresh a token that's about to expire.
+  if (serverAuthEnabled && Date.now() > tokenExpiry - 120000) {
+    await serverToken();
+  }
   const url = new URL(`https://www.googleapis.com/calendar/v3/${path}`);
   Object.entries(params).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
   const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });

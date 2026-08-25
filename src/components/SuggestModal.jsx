@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CAFES } from '../data/events.js';
 import { getPlaces } from '../lib/prefs.js';
+import { loadSettings } from '../lib/store.js';
 import {
   parseMessage, rankWindows, nearestCafe, proposeStart, fmtSlotTime, buildDraft,
   detectBookingLink, tryReadBookingLink, parseTheirSlots, matchTheirSlots,
@@ -23,16 +24,27 @@ export default function SuggestModal({ range, onClose }) {
   const [copied, setCopied] = useState(false);
   const [draftOverride, setDraftOverride] = useState(null);
   const [favId, setFavId] = useState(null); // chosen favorite spot, else nearest café
-  const [bookState, setBookState] = useState(null); // null | 'checking' | {reason} | 'paste'
+  const [bookState, setBookState] = useState(null); // null | 'checking' | 'auto' | 'paste'
   const [theirText, setTheirText] = useState('');
+  const [autoTheirs, setAutoTheirs] = useState(null); // slots fetched via the server proxy
   const favorites = getPlaces().favorites;
 
   const booking = useMemo(() => detectBookingLink(msg), [msg]);
 
   async function checkBooking() {
     setBookState('checking');
+    // Server proxy reads Calendly availability directly (no CORS wall server-side).
+    try {
+      const q = new URLSearchParams({ url: booking.url, start: range.start, end: range.end, tz: loadSettings().tz });
+      const r = await fetch(`/api/booking?${q}`);
+      const js = await r.json();
+      if (js.ok && js.slots?.length) {
+        setAutoTheirs(js.slots.map((iso) => ({ day: iso.slice(0, 10), minutes: +iso.slice(11, 13) * 60 + +iso.slice(14, 16) })));
+        setBookState('auto');
+        return;
+      }
+    } catch { /* dev build or proxy unavailable */ }
     await tryReadBookingLink(booking.url);
-    // No CORS-free path exists today — go straight to the paste flow with an honest note.
     setBookState('paste');
   }
 
@@ -53,11 +65,11 @@ export default function SuggestModal({ range, onClose }) {
   );
 
   const theirMatches = useMemo(() => {
-    if (!theirText.trim()) return null;
-    const theirs = parseTheirSlots(theirText);
+    const theirs = autoTheirs || (theirText.trim() ? parseTheirSlots(theirText) : null);
+    if (!theirs) return null;
     if (!theirs.length) return [];
     return matchTheirSlots({ theirs, start: range.start, end: range.end, durationMin: duration, them });
-  }, [theirText, range, duration, them]);
+  }, [autoTheirs, theirText, range, duration, them]);
 
   const slots = useMemo(
     () =>
@@ -183,7 +195,33 @@ export default function SuggestModal({ range, onClose }) {
                   {bookState === null && (
                     <button className="pill-btn" onClick={checkBooking}>Cross-reference their availability</button>
                   )}
-                  {bookState === 'checking' && <div className="book-note">Trying to read their page…</div>}
+                  {bookState === 'checking' && <div className="book-note">Reading their availability…</div>}
+                  {bookState === 'auto' && theirMatches && (
+                    <>
+                      <div className="book-note">
+                        ✓ Read {autoTheirs.length} open times from their page — here's where they overlap
+                        with your real free windows:
+                      </div>
+                      <div className="book-matches">
+                        {theirMatches.length === 0 && <div className="book-note">No overlap in this date range — try widening the range.</div>}
+                        {theirMatches.slice(0, 5).map((m, i) => (
+                          <div className="book-match" key={i}>
+                            <span>
+                              ✓ <b>{fmtDayLong(m.day)}, {fmtSlotTime(m.ms, m.offset)}</b>
+                              <span className="why"> — fits {m.window.beforeSoft && m.window.afterSoft ? 'a fully open stretch' : `between ${m.window.before?.title || 'your morning'} and ${m.window.after?.title || 'your evening'}`}</span>
+                            </span>
+                            <a className="pill-btn" href={booking.url} target="_blank" rel="noreferrer">Book ↗</a>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        style={{ all: 'unset', cursor: 'pointer', color: 'var(--muted)', fontSize: 11.5, marginTop: 6 }}
+                        onClick={() => { setAutoTheirs(null); setBookState('paste'); }}
+                      >
+                        Looks wrong? Paste their times manually instead
+                      </button>
+                    </>
+                  )}
                   {bookState === 'paste' && (
                     <>
                       <div className="book-note">
