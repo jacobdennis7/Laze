@@ -190,6 +190,8 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       let spots = spotCacheRef.current.get(key);
       if (!spots) {
         spots = await fetchNearbySpots(b, loadSettings().mapsKey || null);
+        // guarantee on-screen results regardless of provider quirks
+        spots = spots.filter((s) => b.contains([s.lat, s.lng]));
         spotCacheRef.current.set(key, spots);
       }
       if (gen !== genRef.current) return; // toggled off / superseded while fetching

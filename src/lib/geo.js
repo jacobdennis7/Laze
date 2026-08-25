@@ -90,26 +90,20 @@ const G_TYPE = (types = [], primary = '') => {
   return 'restaurant';
 };
 
-// Places caps searchNearby at 20 results per call — fan out one request per
-// category and merge, so a dense area shows up to ~60 spots instead of 20.
-const NEARBY_GROUPS = [
-  ['cafe', 'coffee_shop', 'bakery'],
-  ['restaurant'],
-  ['bar', 'pub', 'wine_bar'],
-];
+// Places Text Search accepts a RECTANGLE restriction — the exact visible
+// viewport — unlike searchNearby's circle, which on a wide screen bulged past
+// the top/bottom edges and returned spots outside the view. One query per
+// category, 20 results each, all strictly inside what the user is looking at.
+const NEARBY_QUERIES = ['coffee shops', 'restaurants', 'bars'];
 
 async function googleNearby(bounds, key) {
-  const c = bounds.getCenter();
-  const radius = Math.min(
-    2500,
-    Math.max(300, (haversineKm(
-      { lat: bounds.getSouth(), lng: bounds.getWest() },
-      { lat: bounds.getNorth(), lng: bounds.getEast() }
-    ) * 1000) / 2)
-  );
+  const rectangle = {
+    low: { latitude: bounds.getSouth(), longitude: bounds.getWest() },
+    high: { latitude: bounds.getNorth(), longitude: bounds.getEast() },
+  };
 
-  const one = async (includedTypes) => {
-    const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+  const one = async (textQuery) => {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,16 +111,16 @@ async function googleNearby(bounds, key) {
         'X-Goog-FieldMask': 'places.displayName,places.location,places.primaryType,places.types,places.shortFormattedAddress,places.rating',
       },
       body: JSON.stringify({
-        includedTypes,
-        maxResultCount: 20,
-        locationRestriction: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius } },
+        textQuery,
+        pageSize: 20,
+        locationRestriction: { rectangle },
       }),
     });
     if (!r.ok) throw new Error(`Places ${r.status}`);
     return ((await r.json()).places || []);
   };
 
-  const settled = await Promise.allSettled(NEARBY_GROUPS.map(one));
+  const settled = await Promise.allSettled(NEARBY_QUERIES.map(one));
   if (settled.every((s) => s.status === 'rejected')) throw new Error('Places unavailable');
 
   const seen = new Set();
