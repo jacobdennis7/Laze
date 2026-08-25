@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CAFES } from '../data/events.js';
 import { getPlaces } from '../lib/prefs.js';
 import { loadSettings } from '../lib/store.js';
@@ -27,9 +27,21 @@ export default function SuggestModal({ range, onClose }) {
   const [bookState, setBookState] = useState(null); // null | 'checking' | 'auto' | 'paste'
   const [theirText, setTheirText] = useState('');
   const [autoTheirs, setAutoTheirs] = useState(null); // slots fetched via the server proxy
+  const [bookUrl, setBookUrl] = useState(''); // dedicated booking-link field
   const favorites = getPlaces().favorites;
 
-  const booking = useMemo(() => detectBookingLink(msg), [msg]);
+  // Dedicated field wins; a link inside the pasted message still works as a fallback.
+  const booking = useMemo(
+    () => detectBookingLink(bookUrl) || detectBookingLink(msg),
+    [bookUrl, msg]
+  );
+
+  // New/changed link invalidates any previously fetched availability.
+  const bookingUrl = booking?.url;
+  useEffect(() => {
+    setBookState(null);
+    setAutoTheirs(null);
+  }, [bookingUrl]);
 
   async function checkBooking() {
     setBookState('checking');
@@ -123,18 +135,12 @@ export default function SuggestModal({ range, onClose }) {
           <div className="modal-body">
             <div className="modal-col">
               <div className="field">
-                <label>Paste their message — or a Calendly link — optional</label>
+                <label>Paste their message (email or text) — optional</label>
                 <textarea
                   value={msg}
                   onChange={(e) => { setMsg(e.target.value); setDraftOverride(null); }}
-                  placeholder={'e.g. "Why don\'t we do coffee on the 10th? How\'s 1:30pm?"\n…or paste a booking link like calendly.com/their-name and Laze reads their live availability'}
+                  placeholder={'e.g. "Let\'s do it! Why don\'t we do a coffee on the afternoon of the 10th? How\'s 1:30pm for you?"'}
                 />
-                {!booking && (
-                  <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 5 }}>
-                    💡 Paste a <b>calendly.com</b> link and Laze reads their open times and matches them
-                    against your calendar automatically.
-                  </div>
-                )}
                 {hints && (hints.weekdays.length || hints.dates.length || hints.times.length || hints.dayparts.length) ? (
                   <div className="hint-chips">
                     {hints.dates.map((d) => <span key={d}>asks: {d.slice(5).replace('-', '/')}</span>)}
@@ -143,6 +149,17 @@ export default function SuggestModal({ range, onClose }) {
                     {hints.dayparts.map((p) => <span key={p}>{p}</span>)}
                   </div>
                 ) : null}
+              </div>
+
+              <div className="field">
+                <label>Or their booking link — Laze reads their live availability</label>
+                <input
+                  value={bookUrl}
+                  onChange={(e) => setBookUrl(e.target.value)}
+                  placeholder="https://calendly.com/their-name/30min"
+                  autoComplete="off"
+                  spellCheck="false"
+                />
               </div>
 
               <div className="field">
