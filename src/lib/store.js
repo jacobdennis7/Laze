@@ -83,6 +83,11 @@ export function loadSettings() {
   try {
     const stored = JSON.parse(localStorage.getItem(LS) || '{}');
     const merged = { ...DEFAULTS, ...stored };
+    // Deployed builds ship app credentials — those always win. A stale key
+    // stored on a device (e.g. from a rotated/deleted GCP project) must never
+    // shadow the current one.
+    if (DEFAULTS.clientId) merged.clientId = DEFAULTS.clientId;
+    if (DEFAULTS.mapsKey) merged.mapsKey = DEFAULTS.mapsKey;
     if (!merged.clientId) merged.clientId = DEFAULTS.clientId;
     if (!merged.mapsKey) merged.mapsKey = DEFAULTS.mapsKey;
     return merged;

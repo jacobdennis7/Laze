@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { searchPlaces } from '../lib/places.js';
+import { getPlaces } from '../lib/prefs.js';
 
 // Reusable address field with the same type-ahead as map Search mode:
 // 3+ chars → debounced Google Places suggestions (OSM fallback) → pick one
@@ -23,7 +24,10 @@ export default function AddressInput({ placeholder, initial = '', onSelect, aria
     const seq = ++seqRef.current;
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await searchPlaces(q.trim(), null);
+        // Bias results toward the user's home/office so nearby matches rank first.
+        const p = getPlaces();
+        const bias = p.home || p.office || null;
+        const res = await searchPlaces(q.trim(), bias);
         if (seq === seqRef.current) {
           setResults(res);
           setLoading(false);
