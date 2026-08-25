@@ -123,12 +123,18 @@ export default function SuggestModal({ range, onClose }) {
           <div className="modal-body">
             <div className="modal-col">
               <div className="field">
-                <label>Paste their message (email or text) — optional</label>
+                <label>Paste their message — or a Calendly link — optional</label>
                 <textarea
                   value={msg}
                   onChange={(e) => { setMsg(e.target.value); setDraftOverride(null); }}
-                  placeholder={'e.g. "Let\'s do it! Why don\'t we do a coffee on the afternoon of the 10th? How\'s 1:30pm for you?"'}
+                  placeholder={'e.g. "Why don\'t we do coffee on the 10th? How\'s 1:30pm?"\n…or paste a booking link like calendly.com/their-name and Laze reads their live availability'}
                 />
+                {!booking && (
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 5 }}>
+                    💡 Paste a <b>calendly.com</b> link and Laze reads their open times and matches them
+                    against your calendar automatically.
+                  </div>
+                )}
                 {hints && (hints.weekdays.length || hints.dates.length || hints.times.length || hints.dayparts.length) ? (
                   <div className="hint-chips">
                     {hints.dates.map((d) => <span key={d}>asks: {d.slice(5).replace('-', '/')}</span>)}
