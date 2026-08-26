@@ -79,13 +79,17 @@ export default function SuggestModal({ range, onClose }) {
       windows.map((w, i) => {
         const startMs = proposeStart(w, duration);
         const endMs = startMs + duration * 60000;
+        // A big open block reads as availability, not just the one proposed time.
+        const extent = w.minutes >= duration + 40
+          ? ` · free ${fmtSlotTime(w.s, w.offset)}–${fmtSlotTime(w.e, w.offset)}`
+          : '';
         return {
           id: i,
           w,
           label: `${fmtDayLong(w.day)}, ${fmtSlotTime(startMs, w.offset)}–${fmtSlotTime(endMs, w.offset)}`,
-          context: !w.before && !w.after
+          context: (!w.before && !w.after
             ? 'Fully flexible — nothing on either side'
-            : `${w.before ? `After ${w.before.title}${w.beforeSoft ? ' (venue TBD)' : ` (${w.anchorBefore.hood})`}` : 'Open morning'}${w.after ? `, before ${w.after.title}${w.afterSoft ? ' (venue TBD)' : ''}` : ''}`,
+            : `${w.before ? `After ${w.before.title}${w.beforeSoft ? ' (venue TBD)' : ` (${w.anchorBefore.hood})`}` : 'Open morning'}${w.after ? `, before ${w.after.title}${w.afterSoft ? ' (venue TBD)' : ''}` : ''}`) + extent,
           detourMin: w.detourMin,
         };
       }),

@@ -77,7 +77,8 @@ export function rankWindows({ start, end, them, durationMin = 45, hints = null }
     return { ...w, detourMin: Math.max(0, Math.round(detourMin)), score: detourMin - Math.min(slack, 120) / 60 };
   });
 
-  return { windows: scored.sort((a, b) => a.score - b.score).slice(0, 6), missedAsk };
+  // All qualifying windows, best first — capping this list hid real availability.
+  return { windows: scored.sort((a, b) => a.score - b.score), missedAsk };
 }
 
 function localHour(ms, off) {
