@@ -9,9 +9,12 @@ import { fmtTime } from '../lib/time.js';
 import { MODE_ICON } from '../lib/geo.js';
 import MapSearch from './MapSearch.jsx';
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const TILES_DETAIL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const ATTR = '&copy; OpenStreetMap &copy; CARTO';
+// CARTO began watermarking their free basemaps ("API KEY REQUIRED"), so the
+// default is OpenStreetMap's own tiles (key-less). A nicer styled provider
+// (e.g. Stadia Alidade Smooth) can be swapped in via env vars — no code change.
+const TILES = import.meta.env.VITE_TILES_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILES_DETAIL = import.meta.env.VITE_TILES_DETAIL_URL || TILES;
+const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const SPOT_COLORS = { cafe: '#B26234', restaurant: '#3F7D5E', bar: '#6B5B95' };
 const SPOT_ICONS = { cafe: '☕', restaurant: '🍽', bar: '🍸' };
