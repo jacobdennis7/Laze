@@ -231,10 +231,12 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
       } else merged.push({ s: b.s, e: b.e, evs: [b.ev] });
     }
     for (const b of merged) {
-      if (b.s - cursor >= minMinutes * 60000) {
+      // A gap running into an evening event still ends at the workday cutoff.
+      const wEnd = Math.min(b.s, dayEndEpoch);
+      if (wEnd - cursor >= minMinutes * 60000) {
         // the earliest-starting event in the group is what the window runs into
         const firstEv = b.evs.reduce((x, y) => (toEpoch(y.start) < toEpoch(x.start) ? y : x));
-        out.push(mkWindow(day, cursor, b.s, prev, firstEv, offset));
+        out.push(mkWindow(day, cursor, wEnd, prev, firstEv, offset));
       }
       cursor = Math.max(cursor, b.e);
       // the latest-ending event in the group is what the next window follows
