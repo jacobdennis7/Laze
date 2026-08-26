@@ -14,7 +14,14 @@ import MapSearch from './MapSearch.jsx';
 // (e.g. Stadia Alidade Smooth) can be swapped in via env vars — no code change.
 const TILES = import.meta.env.VITE_TILES_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILES_DETAIL = import.meta.env.VITE_TILES_DETAIL_URL || TILES;
-const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+// Provider terms require visible credit — derive it from whichever tiles are configured.
+const attrFor = (url) => {
+  const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  if (url.includes('cartocdn')) return `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>`;
+  if (url.includes('stadiamaps')) return `${osm} &copy; <a href="https://stadiamaps.com/">Stadia Maps</a>`;
+  return osm;
+};
+const ATTR = attrFor(TILES);
 
 const SPOT_COLORS = { cafe: '#B26234', restaurant: '#3F7D5E', bar: '#6B5B95' };
 const SPOT_ICONS = { cafe: '☕', restaurant: '🍽', bar: '🍸' };
