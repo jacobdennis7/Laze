@@ -49,7 +49,8 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   `main`), domain laze.to + www via Namecheap DNS (A 216.198.79.1 apex,
   CNAME www→2b4ca0749421e2ef.vercel-dns-017.com). Apex 308s to www.
 - **GitHub**: github.com/jacobdennis7/Laze (public). gh CLI at
-  `~/.local/bin/gh`, authed. GitHub Pages workflow still exists (secondary).
+  `~/.local/bin/gh`, authed. (GitHub Pages mirror retired Sep 2026 — Vercel
+  is the only deploy target; sign-in needs /api functions Pages can't run.)
 - **GCP**: project `laze-506216` under jacobadennis@gmail.com (old magid-org
   project deleted). OAuth client 920063632561-…; Maps key restricted to
   Places API (New) + Routes API, referrers laze.to/www/localhost:5174.
