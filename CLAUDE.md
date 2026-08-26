@@ -55,7 +55,10 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   project deleted). OAuth client 920063632561-…; Maps key restricted to
   Places API (New) + Routes API, referrers laze.to/www/localhost:5174.
 - **Vercel env**: VITE_GOOGLE_CLIENT_ID, VITE_MAPS_KEY, GOOGLE_CLIENT_SECRET,
-  SESSION_SECRET (Jacob holds secrets; never paste them in chat).
+  SESSION_SECRET (Jacob holds secrets; never paste them in chat),
+  VITE_TILES_URL + VITE_TILES_DETAIL_URL (Stadia Alidade Smooth / osm_bright,
+  domain-authed for *.laze.to — no key in URL; CARTO free tiles died Sep 2026;
+  keyless OSM is the code fallback when these are unset).
 - Version in package.json; bump on each release; commit style: short scope
   line + wrapped body + `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
