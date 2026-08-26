@@ -6,6 +6,7 @@ import { subscribe, getState, loadSettings, saveSettings, setSyncing, setLiveEve
 import { fetchRange, isConnected, connect, listCalendars, serverAuthEnabled, serverToken, serverLogin } from './lib/google.js';
 import { warmLegs, subscribeRoutes, routesVersion } from './lib/routes.js';
 import { subscribePrefs, prefsVersion, getPlaces } from './lib/prefs.js';
+import { initAnalytics, track } from './lib/analytics.js';
 import SpotSuggestModal from './components/SpotSuggestModal.jsx';
 import TravelBlockModal from './components/TravelBlockModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
@@ -54,11 +55,13 @@ export default function App() {
   function changeRange(r) {
     setRange(r);
     setActiveDay(r.start);
+    track('range_changed', { days: eachDay(r.start, r.end).length });
   }
 
   // Returning users sync with zero clicks. Server auth (deployed): the encrypted
   // session cookie mints a fresh token — works for months. Dev fallback: GIS.
   useEffect(() => {
+    initAnalytics();
     (async () => {
       const s = loadSettings();
       if (serverAuthEnabled) {
@@ -86,6 +89,7 @@ export default function App() {
       if (serverAuthEnabled) {
         // Try the cookie session first; if there is none, do the redirect sign-in.
         if (!(await serverToken())) {
+          track('connect_started');
           serverLogin();
           return;
         }
@@ -113,6 +117,7 @@ export default function App() {
       setLiveEvents(events);
       const firstConnect = !s.wasConnected;
       if (firstConnect) saveSettings({ ...s, wasConnected: true });
+      track('sync_completed', { events: events.length, first_connect: firstConnect });
       // Fresh users don't know the Connections panel exists — after the first
       // successful sync, open it so they set home base, office, and favorites.
       const p = getPlaces();
@@ -128,6 +133,7 @@ export default function App() {
   // onboarding button goes straight to the Google popup; settings only on failure.
   async function onboardConnect() {
     const s = loadSettings();
+    track('connect_started');
     if (serverAuthEnabled) {
       serverLogin();
       return;
@@ -186,7 +192,7 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6" /><line x1="8" y1="3" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="21" /></svg>
             <span className="btn-label">Map</span>
           </button>
-          <button className={view === 'cal' ? 'on' : ''} onClick={() => setView('cal')} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
+          <button className={view === 'cal' ? 'on' : ''} onClick={() => { setView('cal'); track('view_toggled', { view: 'cal' }); }} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="9" y1="10" x2="9" y2="22" /><line x1="15" y1="10" x2="15" y2="22" /></svg>
             <span className="btn-label">Calendar</span>
           </button>
@@ -204,11 +210,11 @@ export default function App() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={store.syncing ? 'spin' : ''}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
           <span className="btn-label">{store.syncing ? 'Syncing…' : 'Sync'}</span>
         </button>
-        <button className="pill-btn" onClick={() => setShowConflicts(true)} aria-label={`${conflicts.length} conflicts`}>
+        <button className="pill-btn" onClick={() => { setShowConflicts(true); track('conflicts_opened', { count: conflicts.length }); }} aria-label={`${conflicts.length} conflicts`}>
           <span className={`badge${conflicts.length === 0 ? ' zero' : ''}`}>{conflicts.length}</span>
           <span className="btn-label">Conflicts</span>
         </button>
-        <button className="pill-btn primary" onClick={() => setShowSuggest(true)} aria-label="Suggest times">
+        <button className="pill-btn primary" onClick={() => { setShowSuggest(true); track('suggest_opened'); }} aria-label="Suggest times">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.8 2.8M16.2 16.2L19 19M19 5l-2.8 2.8M7.8 16.2L5 19" /></svg>
           <span className="btn-label">Suggest</span>
         </button>

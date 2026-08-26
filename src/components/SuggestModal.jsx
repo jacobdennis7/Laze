@@ -6,6 +6,7 @@ import {
   detectBookingLink, tryReadBookingLink, parseTheirSlots, matchTheirSlots,
 } from '../lib/suggest.js';
 import { fmtDayLong } from '../lib/time.js';
+import { track } from '../lib/analytics.js';
 import AddressInput from './AddressInput.jsx';
 
 const CAT_ICON = { coffee: '☕', lunch: '🍽', dinner: '🌙' };
@@ -51,11 +52,13 @@ export default function SuggestModal({ range, onClose }) {
       if (js.ok && js.slots?.length) {
         setAutoTheirs(js.slots.map((iso) => ({ day: iso.slice(0, 10), minutes: +iso.slice(11, 13) * 60 + +iso.slice(14, 16) })));
         setBookState('auto');
+        track('booking_link_checked', { provider: booking.provider, result: 'auto', slots: js.slots.length });
         return;
       }
     } catch { /* dev build or proxy unavailable */ }
     await tryReadBookingLink(booking.url);
     setBookState('paste');
+    track('booking_link_checked', { provider: booking.provider, result: 'paste' });
   }
 
   const hints = useMemo(() => (msg.trim() ? parseMessage(msg) : null), [msg]);
@@ -115,6 +118,7 @@ export default function SuggestModal({ range, onClose }) {
       await navigator.clipboard.writeText(draft);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
+      track('suggest_draft_copied', { slots: chosen.length || Math.min(slots.length, 3), has_location: !!them, tone });
     } catch { /* ignore */ }
   }
 

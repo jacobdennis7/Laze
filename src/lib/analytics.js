@@ -1,0 +1,51 @@
+// Product analytics via PostHog. Fully env-gated: without VITE_POSTHOG_KEY
+// (or off the real domain) nothing loads and track() is a no-op, so dev,
+// previews, and self-hosters ship zero telemetry. posthog-js is imported
+// lazily — it stays out of the main bundle entirely.
+//
+// Privacy rules, enforced here by construction:
+// - explicit events only (autocapture off) — no DOM or content scraping
+// - no session recording
+// - props are counts / booleans / enums only; never titles, addresses,
+//   emails, or anything from the user's calendar.
+
+const KEY = import.meta.env.VITE_POSTHOG_KEY;
+const HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+
+const enabled =
+  !!KEY && typeof window !== 'undefined' && /(^|\.)laze\.to$/.test(window.location.hostname);
+
+let client = null; // resolved posthog instance, once loaded
+let loading = null;
+
+function load() {
+  if (!loading) {
+    loading = import('posthog-js')
+      .then(({ default: posthog }) => {
+        posthog.init(KEY, {
+          api_host: HOST,
+          autocapture: false,
+          capture_pageview: true,
+          disable_session_recording: true,
+          persistence: 'localStorage',
+        });
+        client = posthog;
+        return posthog;
+      })
+      .catch(() => null); // ad-blocked or offline — analytics just stays off
+  }
+  return loading;
+}
+
+export function initAnalytics() {
+  if (enabled) load();
+}
+
+export function track(name, props) {
+  if (!enabled) {
+    if (import.meta.env.DEV) console.debug('[analytics]', name, props || {});
+    return;
+  }
+  if (client) client.capture(name, props);
+  else load().then((p) => p && p.capture(name, props));
+}

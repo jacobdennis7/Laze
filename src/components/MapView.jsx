@@ -4,6 +4,7 @@ import { HOOD_COLORS } from '../data/events.js';
 import { fetchNearbySpots, travelMinutes, MODE_LABEL } from '../lib/geo.js';
 import { liveMinutes } from '../lib/routes.js';
 import { loadSettings } from '../lib/store.js';
+import { track } from '../lib/analytics.js';
 import { routableStops, dayLegs, lodgingFor, effectiveVenue } from '../lib/schedule.js';
 import { fmtTime } from '../lib/time.js';
 import { MODE_ICON } from '../lib/geo.js';
@@ -207,6 +208,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       if (gen !== genRef.current) return; // toggled off / superseded while fetching
       renderSpots(spots);
       setSpotState(spots.length ? 'ok' : 'empty');
+      track('spots_searched', { results: spots.length });
     } catch {
       if (gen === genRef.current) setSpotState('error');
     }

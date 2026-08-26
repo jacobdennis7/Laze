@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { freeWindows, eventsForDay } from '../lib/schedule.js';
 import { proposeStart, fmtSlotTime } from '../lib/suggest.js';
 import { gcalTemplate } from '../lib/geo.js';
+import { track } from '../lib/analytics.js';
 import { fmtDayLong, toEpoch } from '../lib/time.js';
 
 const TYPE_TITLE = { cafe: 'Coffee', restaurant: 'Lunch', bar: 'Drinks' };
@@ -76,7 +77,7 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
             {rows.length === 0 && <div className="empty-note">No open windows left this day — pick your own time below.</div>}
             <div className="slot-list">
               {rows.map((r) => (
-                <a key={r.key} className="slot-item" href={r.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                <a key={r.key} className="slot-item" href={r.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }} onClick={() => track('spot_event_created', { custom_time: false })}>
                   <div>
                     <div className="when">{r.label}</div>
                     <div className="why">{r.context}</div>
@@ -94,7 +95,7 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
                   {DURATIONS.map((d) => <option key={d} value={d}>{d} min</option>)}
                 </select>
                 {custom && (
-                  <a className="pill-btn primary" href={custom.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                  <a className="pill-btn primary" href={custom.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }} onClick={() => track('spot_event_created', { custom_time: true })}>
                     Create ↗
                   </a>
                 )}

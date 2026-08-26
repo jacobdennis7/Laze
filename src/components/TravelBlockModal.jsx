@@ -1,6 +1,7 @@
 import React from 'react';
 import { gcalTemplate, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
 import { fmtSlotTime } from '../lib/suggest.js';
+import { track } from '../lib/analytics.js';
 import { fmtDayLong, fmtTime, toEpoch } from '../lib/time.js';
 
 // Click a travel chip (map or calendar) → offer to put that travel time on the
@@ -50,7 +51,7 @@ export default function TravelBlockModal({ leg, day, onClose }) {
             </p>
             <div className="slot-list">
               {rows.map((r) => (
-                <a key={r.key} className="slot-item" href={r.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                <a key={r.key} className="slot-item" href={r.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }} onClick={() => track('travel_block_created', { mode: leg.mode })}>
                   <div>
                     <div className="when">{r.label}</div>
                     <div className="why">{r.sub}</div>
