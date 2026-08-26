@@ -33,6 +33,19 @@ function BaseField({ kind, label, placeholder }) {
   );
 }
 
+function fmtClock(m) {
+  let h = Math.floor(m / 60);
+  const min = m % 60;
+  const ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 === 0 ? 12 : h % 12;
+  return min ? `${h}:${String(min).padStart(2, '0')}${ap}` : `${h}${ap}`;
+}
+function minuteRange(from, to) {
+  const out = [];
+  for (let m = from; m <= to; m += 30) out.push(m);
+  return out;
+}
+
 const CATS = [
   ['coffee', '☕ Coffee'],
   ['lunch', '🍽 Lunch'],
@@ -201,6 +214,19 @@ export default function SettingsModal({ onClose, onSync }) {
                 </select>
               </div>
               <FavoritesEditor />
+            </div>
+
+            <div className="field">
+              <label>Working hours — Suggest only offers times inside these</label>
+              <div className="field-row" style={{ alignItems: 'center', gap: 8 }}>
+                <select value={s.workStart} onChange={(e) => upd({ workStart: +e.target.value })} style={{ flex: 1 }}>
+                  {minuteRange(5 * 60, 12 * 60).map((m) => <option key={m} value={m}>{fmtClock(m)}</option>)}
+                </select>
+                <span style={{ color: 'var(--muted)', fontSize: 13 }}>to</span>
+                <select value={s.workEnd} onChange={(e) => upd({ workEnd: +e.target.value })} style={{ flex: 1 }}>
+                  {minuteRange(12 * 60, 23 * 60 + 30).map((m) => <option key={m} value={m}>{fmtClock(m)}</option>)}
+                </select>
+              </div>
             </div>
 
             <div className="field">

@@ -1,5 +1,5 @@
 import { VENUES, LODGING, HOME } from '../data/events.js';
-import { getEvents } from './store.js';
+import { getEvents, loadSettings } from './store.js';
 import { liveMinutes } from './routes.js';
 import { resolvePlacement, getPlaces } from './prefs.js';
 import { toEpoch, eachDay } from './time.js';
@@ -198,7 +198,11 @@ function overlapLabel(a, b) {
 // ---------- Free windows ----------
 
 // Free windows in a range with the in-person anchors on each side.
-export function freeWindows(start, end, { minMinutes = 45, dayStart = 8 * 60, dayEnd = 21 * 60 } = {}) {
+// Day bounds default to the user's working hours setting.
+export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayEnd = null } = {}) {
+  const settings = loadSettings();
+  dayStart = dayStart ?? settings.workStart ?? 8 * 60;
+  dayEnd = dayEnd ?? settings.workEnd ?? 21 * 60;
   const out = [];
   for (const day of eachDay(start, end)) {
     const evs = eventsForDay(day).filter((e) => !e.homeCity && e.kind !== 'hold');

@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CAFES } from '../data/events.js';
 import { getPlaces } from '../lib/prefs.js';
 import { loadSettings } from '../lib/store.js';
 import {
@@ -16,7 +15,6 @@ const WD_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function SuggestModal({ range, onClose }) {
   const [msg, setMsg] = useState('');
-  const [themKey, setThemKey] = useState('');
   const [customPt, setCustomPt] = useState(null);
   const [duration, setDuration] = useState(45);
   const [tone, setTone] = useState('text');
@@ -62,14 +60,7 @@ export default function SuggestModal({ range, onClose }) {
 
   const hints = useMemo(() => (msg.trim() ? parseMessage(msg) : null), [msg]);
 
-  const them = useMemo(() => {
-    if (customPt) return customPt;
-    if (themKey) {
-      const c = CAFES.find((c) => c.key === themKey);
-      if (c) return c;
-    }
-    return null;
-  }, [themKey, customPt]);
+  const them = customPt;
 
   const { windows, missedAsk } = useMemo(
     () => rankWindows({ start: range.start, end: range.end, them, durationMin: duration, hints }),
@@ -95,7 +86,7 @@ export default function SuggestModal({ range, onClose }) {
           context: !w.before && !w.after
             ? 'Fully flexible — nothing on either side'
             : `${w.before ? `After ${w.before.title}${w.beforeSoft ? ' (venue TBD)' : ` (${w.anchorBefore.hood})`}` : 'Open morning'}${w.after ? `, before ${w.after.title}${w.afterSoft ? ' (venue TBD)' : ''}` : ''}`,
-          detourKm: w.detour,
+          detourMin: w.detourMin,
         };
       }),
     [windows, duration]
@@ -163,25 +154,11 @@ export default function SuggestModal({ range, onClose }) {
               </div>
 
               <div className="field">
-                <label>Where are they? (their office / neighborhood)</label>
-                <select value={themKey} onChange={(e) => { setThemKey(e.target.value); setCustomPt(null); setDraftOverride(null); }}>
-                  <option value="">— not sure / doesn't matter —</option>
-                  <optgroup label="Neighborhoods">
-                    <option value="farleys">Potrero Hill</option>
-                    <option value="blueBottleSansome">FiDi / Downtown</option>
-                    <option value="sightglass">SoMa</option>
-                    <option value="saintFrank">Russian Hill / Polk</option>
-                    <option value="theMill">NoPa / Divisadero</option>
-                    <option value="watchhouse">NYC — Flatiron</option>
-                  </optgroup>
-                </select>
-              </div>
-              <div className="field">
-                <label>Or exact address</label>
+                <label>Where are they? (address or place — optional)</label>
                 <AddressInput
                   placeholder="555 Market St, San Francisco"
-                  onSelect={(place) => { setCustomPt(place); setThemKey(''); setDraftOverride(null); }}
-                  ariaLabel="Their exact address"
+                  onSelect={(place) => { setCustomPt(place); setDraftOverride(null); }}
+                  ariaLabel="Their address or place"
                 />
                 {customPt && <div style={{ fontSize: 11.5, color: 'var(--ok)', marginTop: 4 }}>✓ {customPt.name}</div>}
               </div>
@@ -292,8 +269,8 @@ export default function SuggestModal({ range, onClose }) {
                         <div className="why">{s.context}</div>
                       </div>
                       {them && (
-                        <span className={`det${s.detourKm > 4 ? ' far' : ''}`}>
-                          {s.detourKm <= 0.8 ? 'on your way' : `+${s.detourKm.toFixed(1)} km`}
+                        <span className={`det${s.detourMin > 25 ? ' far' : ''}`}>
+                          {s.detourMin <= 5 ? 'on your way' : `+${s.detourMin} min travel`}
                         </span>
                       )}
                     </button>

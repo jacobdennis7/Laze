@@ -77,6 +77,10 @@ const DEFAULTS = {
     catch { return 'America/New_York'; }
   })(),
   calendars: null,
+  // Working hours (minutes from midnight, local to each day) — Suggest and
+  // spot-slot proposals never offer times outside these.
+  workStart: 8 * 60,
+  workEnd: 21 * 60,
 };
 
 export function loadSettings() {

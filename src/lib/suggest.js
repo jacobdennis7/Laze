@@ -64,14 +64,17 @@ export function rankWindows({ start, end, them, durationMin = 45, hints = null }
   }
 
   const scored = windows.map((w) => {
-    let detour = 0;
+    // Detour in added travel minutes: how much longer the before→them→after
+    // trip is vs. going before→after directly. Minutes, not km — that's the
+    // unit the user actually plans in.
+    let detourMin = 0;
     if (them && w.anchorBefore && w.anchorAfter) {
-      const base = haversineKm(w.anchorBefore, w.anchorAfter);
-      detour = haversineKm(w.anchorBefore, them) + haversineKm(them, w.anchorAfter) - base;
-      if (w.beforeSoft && w.afterSoft) detour *= 0.4; // both edges soft → location barely matters
+      const base = travelMinutes(w.anchorBefore, w.anchorAfter);
+      detourMin = travelMinutes(w.anchorBefore, them) + travelMinutes(them, w.anchorAfter) - base;
+      if (w.beforeSoft && w.afterSoft) detourMin *= 0.4; // both edges soft → location barely matters
     }
     const slack = w.minutes - durationMin;
-    return { ...w, detour, score: detour * 10 - Math.min(slack, 120) / 60 };
+    return { ...w, detourMin: Math.max(0, Math.round(detourMin)), score: detourMin - Math.min(slack, 120) / 60 };
   });
 
   return { windows: scored.sort((a, b) => a.score - b.score).slice(0, 6), missedAsk };
