@@ -10,7 +10,11 @@
 //   emails, or anything from the user's calendar.
 
 const KEY = import.meta.env.VITE_POSTHOG_KEY;
-const HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+// First-party proxy (vercel.json rewrites /ingest → PostHog) so ad-blockers
+// that block *.posthog.com don't silently drop 20-40% of users.
+const HOST =
+  import.meta.env.VITE_POSTHOG_HOST ||
+  (typeof window !== 'undefined' ? `${window.location.origin}/ingest` : '');
 
 const enabled =
   !!KEY && typeof window !== 'undefined' && /(^|\.)laze\.to$/.test(window.location.hostname);
@@ -24,6 +28,7 @@ function load() {
       .then(({ default: posthog }) => {
         posthog.init(KEY, {
           api_host: HOST,
+          ui_host: 'https://us.posthog.com',
           autocapture: false,
           capture_pageview: true,
           disable_session_recording: true,

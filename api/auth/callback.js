@@ -42,6 +42,26 @@ export default async function handler(req, res) {
       cookie(SESSION_COOKIE, seal({ rt: tok.refresh_token, email, name, v: 2 }), SESSION_DAYS * 86400),
       cookie(STATE_COOKIE, '', 0),
     ]);
+
+    // Server-authoritative sign-up record: captured here so every sign-in is
+    // counted even when the client's analytics are ad-blocked. Same distinct_id
+    // (email) as the client-side identify, so it lands on the same person.
+    const phKey = process.env.VITE_POSTHOG_KEY;
+    if (phKey && email) {
+      try {
+        await fetch('https://us.i.posthog.com/i/v0/e/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: phKey,
+            event: 'user_signed_up',
+            distinct_id: email,
+            properties: { name, $set: { email, name } },
+          }),
+        });
+      } catch { /* analytics must never block sign-in */ }
+    }
+
     res.redirect(302, '/?connected=1');
   } catch {
     return fail('exchange_failed');

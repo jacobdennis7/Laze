@@ -60,6 +60,15 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   voyager` with `?key=` — CARTO required keys as of Sep 2026; Jacob got a free
   key, 5M tiles/mo. This pale-Positron look is the canonical map identity —
   Stadia styles were tried and rejected. Keyless OSM is the code fallback).
+- **Analytics**: Vercel Web Analytics (dashboard toggle) + PostHog
+  (`src/lib/analytics.js` — env-gated on VITE_POSTHOG_KEY + laze.to hostname,
+  lazy chunk, autocapture/session-recording off, explicit snake_case events,
+  props are counts/enums only, never calendar content). Served through the
+  first-party `/ingest` proxy (vercel.json rewrites) to survive ad-blockers.
+  Users are identified by email (from the non-sensitive openid/email/profile
+  scopes, sealed in the session cookie — never from calendar data), and
+  `api/auth/callback.js` records a server-authoritative `user_signed_up`.
+  All of this is disclosed in privacy.html — keep that in sync.
 - Version in package.json; bump on each release; commit style: short scope
   line + wrapped body + `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
@@ -71,9 +80,9 @@ the page context with the bundle's key; referrer restrictions pass there).
 
 ## Backlog
 
-- PostHog analytics (needs Jacob's account + VITE_POSTHOG_KEY; wire connect/
-  sync/suggest/spot events). Vercel Web Analytics loader already conditional
-  in index.html — needs dashboard toggle.
+- Suggest-as-a-mode redesign: local branch `suggest-mode` has the working
+  prototype (drawer + ghost slots in the calendar) — tabled, awaiting Jacob's
+  verdict. Booking-link availability as highlighted ghosts is the endgame.
 - iOS via Capacitor wrapper (auth foundation done — server code flow); needs
   Apple Developer account ($99/yr).
 - cal.com support in api/booking.js (Calendly only today).
