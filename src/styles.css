@@ -332,7 +332,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--hairline); }
 .modal-head h2 { margin: 0; font-size: 17px; }
 .modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-.modal-col { padding: 18px 22px; }
+/* min-width: 0 lets columns shrink below their widest child (the day-chip
+   row scrolls instead of blowing the modal out past the viewport) */
+.modal-col { padding: 18px 22px; min-width: 0; }
 .modal-col + .modal-col { border-left: 1px solid var(--hairline); background: #fbfbfa; }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
@@ -578,6 +580,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   .modal { padding: 12px; }
   .modal-body { grid-template-columns: 1fr; }
   .modal-col + .modal-col { border-left: none; border-top: 1px solid var(--hairline); }
+  /* comfortable thumb targets for the day filter on phones */
+  .dayfilter-chips button { font-size: 13px; padding: 6px 12px; }
+  .show-more { padding: 10px 0; }
   .topbar { gap: 8px; padding: 8px 10px; }
   .brand .logo { font-size: 15px; }
 
@@ -616,6 +621,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .dayfilter-chips {
   display: flex;
   gap: 6px;
+  max-width: 100%;
   overflow-x: auto;
   padding: 2px 0 8px;
   -webkit-overflow-scrolling: touch;
