@@ -118,6 +118,29 @@ export function proposeStart(w, durationMin) {
   return Math.min(rounded, w.e - durationMin * 60000);
 }
 
+// Every viable start in a window on the half-hour grid — the window's natural
+// proposal first, the rest chronological. A 3-hour gap is many options, not one.
+export function windowSlots(w, durationMin) {
+  const step = 30 * 60000;
+  const durMs = durationMin * 60000;
+  const proposed = proposeStart(w, durationMin);
+  const starts = [];
+  for (let t = Math.ceil(w.s / step) * step; t + durMs <= w.e; t += step) starts.push(t);
+  if (!starts.includes(proposed) && proposed >= w.s && proposed + durMs <= w.e) starts.push(proposed);
+  if (!starts.length) return [];
+  starts.sort((a, b) => (a === proposed ? -1 : b === proposed ? 1 : a - b));
+  return starts;
+}
+
+// Flatten score-ordered windows into one ranked slot list: every window's best
+// pick first (in window order), then the second picks, and so on — so "top 3"
+// spans the day's gaps instead of drowning in the first big one.
+export function rankSlots(windows, durationMin) {
+  return windows
+    .flatMap((w, wi) => windowSlots(w, durationMin).map((ms, ci) => ({ w, ms, ci, wi })))
+    .sort((a, b) => a.ci - b.ci || a.wi - b.wi);
+}
+
 export function fmtSlotTime(ms, off) {
   const d = new Date(ms + offsetMs(off));
   let h = d.getUTCHours(), min = d.getUTCMinutes();

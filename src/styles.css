@@ -611,3 +611,47 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   input, select, textarea { font-size: 16px !important; }
 }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }
+
+/* ---------- Suggest/Spot slot list: day filter + progressive reveal ---------- */
+.dayfilter-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.dayfilter-chips::-webkit-scrollbar { display: none; }
+.dayfilter-chips button {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2, #555);
+  background: var(--chip, #f1f2f5);
+  border: 1px solid var(--hairline, #e3e5ea);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.dayfilter-chips button.on {
+  color: #fff;
+  background: var(--accent, #2b3be2);
+  border-color: var(--accent, #2b3be2);
+}
+.show-more {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent, #2b3be2);
+  border: 1px dashed var(--hairline, #e3e5ea);
+  border-radius: 10px;
+  padding: 7px 0;
+  margin-top: 8px;
+}
+.show-more:hover { background: var(--chip, #f1f2f5); }

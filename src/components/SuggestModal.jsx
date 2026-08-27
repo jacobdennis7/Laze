@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getPlaces } from '../lib/prefs.js';
 import { loadSettings } from '../lib/store.js';
 import {
-  parseMessage, rankWindows, nearestCafe, proposeStart, fmtSlotTime, buildDraft,
+  parseMessage, rankWindows, rankSlots, nearestCafe, fmtSlotTime, buildDraft,
   detectBookingLink, tryReadBookingLink, parseTheirSlots, matchTheirSlots,
 } from '../lib/suggest.js';
-import { fmtDayLong } from '../lib/time.js';
+import { fmtDayLong, fmtDayShort, eachDay } from '../lib/time.js';
 import { track } from '../lib/analytics.js';
 import AddressInput from './AddressInput.jsx';
 
@@ -77,27 +77,28 @@ export default function SuggestModal({ range, onClose }) {
     return matchTheirSlots({ theirs, start: range.start, end: range.end, durationMin: duration, them });
   }, [autoTheirs, theirText, range, duration, them]);
 
-  const slots = useMemo(
+  // Every viable start across every free window (half-hour grid, working
+  // hours + buffer already carved out), ranked best-gap-first.
+  const allSlots = useMemo(
     () =>
-      windows.map((w, i) => {
-        const startMs = proposeStart(w, duration);
-        const endMs = startMs + duration * 60000;
-        // A big open block reads as availability, not just the one proposed time.
-        const extent = w.minutes >= duration + 40
-          ? ` · free ${fmtSlotTime(w.s, w.offset)}–${fmtSlotTime(w.e, w.offset)}`
-          : '';
-        return {
-          id: i,
-          w,
-          label: `${fmtDayLong(w.day)}, ${fmtSlotTime(startMs, w.offset)}–${fmtSlotTime(endMs, w.offset)}`,
-          context: (!w.before && !w.after
-            ? 'Fully flexible — nothing on either side'
-            : `${w.before ? `After ${w.before.title}${w.beforeSoft ? ' (venue TBD)' : ` (${w.anchorBefore.hood})`}` : 'Open morning'}${w.after ? `, before ${w.after.title}${w.afterSoft ? ' (venue TBD)' : ''}` : ''}`) + extent,
-          detourMin: w.detourMin,
-        };
-      }),
+      rankSlots(windows, duration).map(({ w, ms }) => ({
+        id: ms,
+        w,
+        day: w.day,
+        label: `${fmtDayLong(w.day)}, ${fmtSlotTime(ms, w.offset)}–${fmtSlotTime(ms + duration * 60000, w.offset)}`,
+        context: !w.before && !w.after
+          ? 'Fully flexible — nothing on either side'
+          : `${w.before ? `After ${w.before.title}${w.beforeSoft ? ' (venue TBD)' : ` (${w.anchorBefore.hood})`}` : 'Open morning'}${w.after ? `, before ${w.after.title}${w.afterSoft ? ' (venue TBD)' : ''}` : ''}`,
+        detourMin: w.detourMin,
+      })),
     [windows, duration]
   );
+
+  const daysInRange = useMemo(() => eachDay(range.start, range.end), [range]);
+  const [dayFilter, setDayFilter] = useState(null);
+  const [shown, setShown] = useState(6);
+  const filtered = dayFilter ? allSlots.filter((s) => s.day === dayFilter) : allSlots;
+  const slots = filtered.slice(0, shown);
 
   const chosenFav = favorites.find((f) => f.id === favId) || null;
   const cafe = useMemo(
@@ -105,7 +106,7 @@ export default function SuggestModal({ range, onClose }) {
     [them, chosenFav]
   );
 
-  const chosen = slots.filter((s) => selected.includes(s.id));
+  const chosen = allSlots.filter((s) => selected.includes(s.id));
   const draft = draftOverride ?? buildDraft({ tone, slots: chosen.length ? chosen : slots.slice(0, 3), them, cafe, missedAsk });
 
   function toggleSlot(id) {
@@ -174,7 +175,7 @@ export default function SuggestModal({ range, onClose }) {
                 <label>Length</label>
                 <div className="tone-seg">
                   {DUR.map((d) => (
-                    <button key={d} className={duration === d ? 'on' : ''} onClick={() => { setDuration(d); setDraftOverride(null); }}>
+                    <button key={d} className={duration === d ? 'on' : ''} onClick={() => { setDuration(d); setSelected([]); setShown(6); setDraftOverride(null); }}>
                       {d}m
                     </button>
                   ))}
@@ -266,10 +267,18 @@ export default function SuggestModal({ range, onClose }) {
             <div className="modal-col">
               <div className="field">
                 <label>
-                  Ranked windows in {range.start.slice(5).replace('-', '/')}–{range.end.slice(5).replace('-', '/')} · pick up to 3
+                  Best times in {range.start.slice(5).replace('-', '/')}–{range.end.slice(5).replace('-', '/')} · pick up to 3
                 </label>
+                <div className="dayfilter-chips" role="tablist" aria-label="Filter by day">
+                  <button className={!dayFilter ? 'on' : ''} onClick={() => { setDayFilter(null); setShown(6); }}>All days</button>
+                  {daysInRange.map((d) => (
+                    <button key={d} className={dayFilter === d ? 'on' : ''} onClick={() => { setDayFilter(d === dayFilter ? null : d); setShown(6); }}>
+                      {fmtDayShort(d)}
+                    </button>
+                  ))}
+                </div>
                 <div className="slot-list">
-                  {slots.length === 0 && <div className="empty-note">No open windows fit — widen the range or shorten the meeting.</div>}
+                  {filtered.length === 0 && <div className="empty-note">No open windows fit — widen the range, shorten the meeting, or check working hours.</div>}
                   {slots.map((s) => (
                     <button key={s.id} className={`slot-item${selected.includes(s.id) ? ' sel' : ''}`} onClick={() => toggleSlot(s.id)}>
                       <div>
@@ -284,6 +293,11 @@ export default function SuggestModal({ range, onClose }) {
                     </button>
                   ))}
                 </div>
+                {filtered.length > shown && (
+                  <button className="show-more" onClick={() => setShown((n) => n + 6)}>
+                    Show more times · {filtered.length - shown} more
+                  </button>
+                )}
               </div>
 
               <div className="field">

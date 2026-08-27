@@ -230,6 +230,15 @@ export default function SettingsModal({ onClose, onSync }) {
             </div>
 
             <div className="field">
+              <label>Buffer between meetings — kept free on both sides</label>
+              <select value={s.bufferMin} onChange={(e) => upd({ bufferMin: +e.target.value })}>
+                {[0, 10, 15, 20, 30, 45, 60].map((m) => (
+                  <option key={m} value={m}>{m === 0 ? 'No buffer' : `${m} min`}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
               <label>Display timezone</label>
               <select value={s.tz} onChange={(e) => upd({ tz: e.target.value })}>
                 {!['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'].includes(s.tz) && (

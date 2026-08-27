@@ -199,10 +199,11 @@ function overlapLabel(a, b) {
 
 // Free windows in a range with the in-person anchors on each side.
 // Day bounds default to the user's working hours setting.
-export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayEnd = null } = {}) {
+export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayEnd = null, bufferMin = null } = {}) {
   const settings = loadSettings();
   dayStart = dayStart ?? settings.workStart ?? 8 * 60;
   dayEnd = dayEnd ?? settings.workEnd ?? 21 * 60;
+  const bufMs = (bufferMin ?? settings.bufferMin ?? 0) * 60000;
   const out = [];
   for (const day of eachDay(start, end)) {
     const evs = eventsForDay(day).filter((e) => !e.homeCity && e.kind !== 'hold');
@@ -211,7 +212,8 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
         // A flight blocks ~2h10m before wheels-up (airport + ride) and ~35m after landing (deplane, bags, car).
         const pre = e.kind === 'flight' ? 130 * 60000 : 0;
         const post = e.kind === 'flight' ? 35 * 60000 : 0;
-        return { s: toEpoch(e.start) - pre, e: toEpoch(e.end) + post, ev: e };
+        // the user's buffer keeps breathing room on both sides of every meeting
+        return { s: toEpoch(e.start) - pre - bufMs, e: toEpoch(e.end) + post + bufMs, ev: e };
       })
       .sort((a, b) => a.s - b.s);
 

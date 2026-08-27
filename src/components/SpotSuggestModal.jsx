@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { freeWindows, eventsForDay } from '../lib/schedule.js';
-import { proposeStart, fmtSlotTime } from '../lib/suggest.js';
+import { rankSlots, fmtSlotTime } from '../lib/suggest.js';
 import { gcalTemplate } from '../lib/geo.js';
 import { track } from '../lib/analytics.js';
 import { fmtDayLong, toEpoch } from '../lib/time.js';
@@ -9,10 +9,11 @@ const TYPE_TITLE = { cafe: 'Coffee', restaurant: 'Lunch', bar: 'Drinks' };
 const DURATIONS = [30, 45, 60, 90];
 
 export default function SpotSuggestModal({ spot, day, onClose }) {
-  const windows = useMemo(() => freeWindows(day, day, { minMinutes: 45 }), [day]);
   const duration = spot.type === 'cafe' ? 45 : 60;
+  const windows = useMemo(() => freeWindows(day, day, { minMinutes: duration }), [day, duration]);
   const [customTime, setCustomTime] = useState('10:00');
   const [customDur, setCustomDur] = useState(duration);
+  const [shown, setShown] = useState(3);
 
   // The day's UTC offset: from a free window, else any event that day, else the device.
   const offset = useMemo(() => {
@@ -42,24 +43,28 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
     };
   }, [day, customTime, customDur, offset, spot, location]);
 
-  const rows = windows.slice(0, 4).map((w) => {
-    const startMs = proposeStart(w, duration);
-    const endMs = startMs + duration * 60000;
-    const sign = w.offset[0] === '-' ? -1 : 1;
-    const [oh, om] = w.offset.slice(1).split(':').map(Number);
-    const localHour = new Date(startMs + sign * (oh * 60 + om) * 60000).getUTCHours();
-    const kind = spot.type === 'restaurant' && localHour >= 17 ? 'Dinner' : TYPE_TITLE[spot.type] || 'Meet';
-    const title = `${kind} — ${spot.name}`;
-    const location = `${spot.name}${spot.address ? `, ${spot.address}` : ''}`;
-    return {
-      key: w.s,
-      label: `${fmtSlotTime(startMs, w.offset)}–${fmtSlotTime(endMs, w.offset)}`,
-      context: w.before || w.after
-        ? `${w.before ? `after ${w.before.title}` : 'open morning'}${w.after ? `, before ${w.after.title}` : ''}`
-        : 'fully open',
-      url: gcalTemplate({ title, location, details: 'Scheduled via Laze', startMs, endMs, offset: w.offset }),
-    };
-  });
+  // Every viable start this day (working hours + buffer respected), the best
+  // pick from each gap ranked first, then the rest — revealed in threes.
+  const allRows = useMemo(
+    () =>
+      rankSlots(windows, duration).map(({ w, ms }) => {
+        const endMs = ms + duration * 60000;
+        const sign = w.offset[0] === '-' ? -1 : 1;
+        const [oh, om] = w.offset.slice(1).split(':').map(Number);
+        const localHour = new Date(ms + sign * (oh * 60 + om) * 60000).getUTCHours();
+        const kind = spot.type === 'restaurant' && localHour >= 17 ? 'Dinner' : TYPE_TITLE[spot.type] || 'Meet';
+        return {
+          key: ms,
+          label: `${fmtSlotTime(ms, w.offset)}–${fmtSlotTime(endMs, w.offset)}`,
+          context: w.before || w.after
+            ? `${w.before ? `after ${w.before.title}` : 'open morning'}${w.after ? `, before ${w.after.title}` : ''}`
+            : 'fully open',
+          url: gcalTemplate({ title: `${kind} — ${spot.name}`, location, details: 'Scheduled via Laze', startMs: ms, endMs, offset: w.offset }),
+        };
+      }),
+    [windows, duration, spot, location]
+  );
+  const rows = allRows.slice(0, shown);
 
   return (
     <>
@@ -86,6 +91,11 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
                 </a>
               ))}
             </div>
+            {allRows.length > shown && (
+              <button className="show-more" onClick={() => setShown((n) => n + 3)}>
+                Show more times · {allRows.length - shown} more
+              </button>
+            )}
 
             <div className="custom-slot">
               <label>Or pick your own time</label>

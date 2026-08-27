@@ -81,6 +81,8 @@ const DEFAULTS = {
   // spot-slot proposals never offer times outside these.
   workStart: 8 * 60,
   workEnd: 21 * 60,
+  // Minutes kept free on both sides of every meeting when proposing times.
+  bufferMin: 15,
 };
 
 export function loadSettings() {
