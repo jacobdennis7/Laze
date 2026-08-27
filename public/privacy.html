@@ -29,7 +29,8 @@
   <h2>Where your data lives</h2>
   <p>Laze has no database. Your calendar events, home/office addresses, and favorite spots are stored
   only in your own browser (localStorage) on your own device. When you sign in, your Google sign-in
-  credential (a refresh token) is encrypted and stored in a secure cookie on your device; our server
+  credential (a refresh token) and your basic profile (name and email) are encrypted and stored in
+  a secure cookie on your device; our server
   uses it transiently to obtain short-lived access tokens from Google and never stores it, your
   calendar data, or anything else about you. Clearing your browser data and cookies removes
   everything, and you can revoke access at any time (see below).</p>
@@ -43,11 +44,12 @@
   availability on your behalf and returns it to your browser; nothing from that request is stored.</p>
 
   <h2>Usage analytics</h2>
-  <p>To understand how Laze is used and improve it, we collect anonymous usage analytics (via
-  Vercel Web Analytics and PostHog): page views and product actions such as "calendar synced" or
-  "suggestion copied", with counts only. Analytics never include your calendar content — no event
-  titles, attendees, addresses, messages, or email addresses — and we do not use session recording
-  or advertising trackers.</p>
+  <p>To understand how Laze is used and improve it, we collect usage analytics (via Vercel Web
+  Analytics and PostHog): page views and product actions such as "calendar synced" or "suggestion
+  copied", with counts only. When you sign in with Google, we associate your usage with your name
+  and email address (from your basic Google profile) so we know who is using Laze. Analytics never
+  include your calendar content — no event titles, attendees, locations, or messages — and we do
+  not use session recording or advertising trackers.</p>
 
   <h2>Google API disclosure</h2>
   <p>Laze's use and transfer of information received from Google APIs adheres to the

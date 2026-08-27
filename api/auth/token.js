@@ -28,7 +28,13 @@ export default async function handler(req, res) {
       res.status(401).json({ error: tok.error || 'refresh_failed' });
       return;
     }
-    res.status(200).json({ access_token: tok.access_token, expires_in: tok.expires_in });
+    res.status(200).json({
+      access_token: tok.access_token,
+      expires_in: tok.expires_in,
+      // present on sessions created since the openid scope was added (v2)
+      email: session.email || null,
+      name: session.name || null,
+    });
   } catch {
     res.status(502).json({ error: 'google_unreachable' });
   }

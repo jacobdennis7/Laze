@@ -2,6 +2,7 @@
 // Needs an OAuth Client ID (Web application, origin http://localhost:5174) with the
 // Google Calendar API enabled. Read-only scope; the token never leaves the browser.
 import { VENUES } from '../data/events.js';
+import { identify } from './analytics.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -41,6 +42,7 @@ export async function serverToken() {
     accessToken = js.access_token;
     tokenExpiry = Date.now() + (js.expires_in || 3600) * 1000;
     try { localStorage.setItem(TOKEN_LS, JSON.stringify({ token: accessToken, exp: tokenExpiry })); } catch { /* full */ }
+    if (js.email) identify(js.email, js.name ? { name: js.name } : undefined);
     return true;
   } catch {
     return false;

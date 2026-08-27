@@ -13,7 +13,9 @@ export default function handler(req, res) {
     client_id: clientId(),
     redirect_uri: redirectUri(req),
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    // openid/email/profile are non-sensitive basic-identity scopes (no
+    // re-verification) — they let us greet the user and identify sign-ups.
+    scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
     access_type: 'offline', // this is what yields the long-lived refresh token
     prompt: 'consent',      // guarantees a refresh token even on re-login
     state,

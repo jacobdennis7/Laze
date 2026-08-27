@@ -49,3 +49,16 @@ export function track(name, props) {
   if (client) client.capture(name, props);
   else load().then((p) => p && p.capture(name, props));
 }
+
+// Ties this browser's event stream to the signed-in user (email as the
+// distinct id) so sign-ups are people, not anonymous ids. The identity comes
+// from Google's basic openid/email/profile scopes — never from calendar data —
+// and this is disclosed in the privacy policy.
+export function identify(email, props) {
+  if (!email) return;
+  if (!enabled) {
+    if (import.meta.env.DEV) console.debug('[analytics] identify', email, props || {});
+    return;
+  }
+  load().then((p) => p && p.identify(email, { email, ...props }));
+}

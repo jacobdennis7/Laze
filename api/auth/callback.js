@@ -29,8 +29,17 @@ export default async function handler(req, res) {
     const tok = await r.json();
     if (!r.ok || !tok.refresh_token) return fail(tok.error || 'no_refresh_token');
 
+    // The id_token (from the openid scope) carries the user's email + name.
+    // They live only in the sealed cookie on the user's device, like the token.
+    let email = null, name = null;
+    try {
+      const claims = JSON.parse(Buffer.from(tok.id_token.split('.')[1], 'base64url').toString());
+      email = claims.email || null;
+      name = claims.name || null;
+    } catch { /* id_token absent or malformed — proceed without identity */ }
+
     res.setHeader('Set-Cookie', [
-      cookie(SESSION_COOKIE, seal({ rt: tok.refresh_token, v: 1 }), SESSION_DAYS * 86400),
+      cookie(SESSION_COOKIE, seal({ rt: tok.refresh_token, email, name, v: 2 }), SESSION_DAYS * 86400),
       cookie(STATE_COOKIE, '', 0),
     ]);
     res.redirect(302, '/?connected=1');
