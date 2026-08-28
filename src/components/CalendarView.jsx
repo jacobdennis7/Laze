@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
 import { eventsForDay, dayLegs } from '../lib/schedule.js';
 import { venueOf, MODE_ICON } from '../lib/geo.js';
-import { eachDay, minutesOfDay, fmtTimeShort, fmtDayTiny } from '../lib/time.js';
+import { calColor } from '../lib/colors.js';
+import { eachDay, minutesOfDay, fmtTimeShort, fmtDayTiny, fmtDayShort } from '../lib/time.js';
 
 const DAY_START = 6 * 60; // 6 AM
 const DAY_END = 23 * 60; // 11 PM
@@ -28,8 +29,31 @@ function packColumns(evs) {
   return placed.map((p) => ({ ...p, nCols }));
 }
 
+const SPANS = [[1, 'Day'], [3, '3 days'], [7, 'Week'], [0, 'Full range']];
+
 export default function CalendarView({ range, mode, onSelect, onTravel }) {
-  const days = eachDay(range.start, range.end);
+  const allDays = eachDay(range.start, range.end);
+  // View span: how many of the range's days show at once. Phones default to
+  // 3 days (like the Google Calendar app); desktop shows the whole range.
+  const [span, setSpan] = useState(() => {
+    try {
+      const s = localStorage.getItem('laze-cal-span');
+      if (s !== null) return +s;
+    } catch { /* private mode */ }
+    return typeof window !== 'undefined' && window.innerWidth < 720 ? 3 : 0;
+  });
+  const [offset, setOffset] = useState(0);
+  useEffect(() => setOffset(0), [range.start, range.end]);
+  const n = span === 0 ? allDays.length : Math.min(span, allDays.length);
+  const maxOff = Math.max(0, allDays.length - n);
+  const off = Math.min(offset, maxOff);
+  const days = allDays.slice(off, off + n);
+  function pickSpan(v) {
+    setSpan(v);
+    setOffset(0);
+    try { localStorage.setItem('laze-cal-span', String(v)); } catch { /* ignore */ }
+  }
+
   const height = (DAY_END - DAY_START) * PX_PER_MIN;
   const hours = [];
   for (let h = Math.ceil(DAY_START / 60); h <= Math.floor(DAY_END / 60); h++) hours.push(h);
@@ -39,6 +63,16 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
 
   return (
     <div className="cal-wrap">
+      <div className="cal-toolbar">
+        <button className="cal-nav" disabled={off === 0} onClick={() => setOffset(Math.max(0, off - n))} aria-label="Earlier days">‹</button>
+        <select value={span} onChange={(e) => pickSpan(+e.target.value)} aria-label="Calendar view span">
+          {SPANS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <button className="cal-nav" disabled={off >= maxOff} onClick={() => setOffset(Math.min(maxOff, off + n))} aria-label="Later days">›</button>
+        <span className="cal-range-note">
+          {fmtDayShort(days[0])}{days.length > 1 ? ` – ${fmtDayShort(days[days.length - 1])}` : ''}
+        </span>
+      </div>
       <div className="cal-headrow" style={{ gridTemplateColumns: gridCols }}>
         <div />
         {days.map((d) => {
@@ -81,7 +115,9 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
                 let e = minutesOfDay(ev.end);
                 if (e <= s) e = Math.min(s + 60, DAY_END); // crosses midnight/ET end — clamp
                 const v = venueOf(ev);
-                const color = v ? HOOD_COLORS[v.hood] : ev.tbd ? '#a8574e' : '#8C929C';
+                // Identity color per calendar (like Google Calendar); demo
+                // snapshot events have no calId and keep the venue palette.
+                const color = calColor(ev) || (v ? HOOD_COLORS[v.hood] : ev.tbd ? '#a8574e' : '#8C929C');
                 const w = 100 / nCols;
                 const title = `${ev.title}${ev.org ? ' · ' + ev.org : ''}\n${fmtTimeShort(ev.start)}–${fmtTimeShort(ev.end)}\n${v && !ev.tbd ? v.name + ' — ' + v.hood : ev.virtual ? 'Virtual' : ev.tbd ? 'No location yet' : ev.locationText || 'No location'}`;
                 return (
@@ -93,7 +129,10 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
                       height: Math.max((e - s) * PX_PER_MIN - 2, 17),
                       left: `calc(${col * w}% + 2px)`,
                       width: `calc(${w}% - 5px)`,
-                      background: color,
+                      // virtual = tint of its calendar color, not washed-out white
+                      ...(ev.virtual
+                        ? { background: `${color}1f`, color, borderLeftColor: color }
+                        : { background: color }),
                     }}
                     title={title}
                     onClick={() => onSelect && onSelect(ev)}

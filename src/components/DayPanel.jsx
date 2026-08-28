@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
+import { calColor } from '../lib/colors.js';
 import { eventsForDay, dayLegs, routableStops, lodgingFor, effectiveVenue } from '../lib/schedule.js';
 import { gmapsRoute, gmapsDir, gmapsPlace, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
 import { getPlaces, getPlacement, setPlacement, setPlacementGeo } from '../lib/prefs.js';
@@ -91,7 +92,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
         {evs.map((ev) => {
           const v = effectiveVenue(ev);
           const num = stopIndex.get(ev.id);
-          const color = v ? HOOD_COLORS[v.hood] : ev.virtual ? HOOD_COLORS.virtual : HOOD_COLORS.tbd;
+          const color = calColor(ev) || (v ? HOOD_COLORS[v.hood] : ev.virtual ? HOOD_COLORS.virtual : HOOD_COLORS.tbd);
           const leg = legAfter.get(ev.id);
           const free = freeGaps.find((f) => f.afterId === ev.id);
           return (

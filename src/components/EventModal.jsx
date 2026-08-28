@@ -1,5 +1,6 @@
 import React from 'react';
 import { GIDS, CAL_EMAILS, PERSONAL_IDS, HOOD_COLORS } from '../data/events.js';
+import { calColor } from '../lib/colors.js';
 import { venueOf, gmapsPlace } from '../lib/geo.js';
 import { fmtTime, fmtDayLong } from '../lib/time.js';
 
@@ -14,7 +15,7 @@ function gcalLink(ev) {
 
 export default function EventModal({ ev, onClose }) {
   const v = venueOf(ev);
-  const color = v ? HOOD_COLORS[v.hood] || '#5a6572' : ev.virtual ? '#8C929C' : '#C0473E';
+  const color = calColor(ev) || (v ? HOOD_COLORS[v.hood] || '#5a6572' : ev.virtual ? '#8C929C' : '#C0473E');
   const gcal = gcalLink(ev);
   return (
     <>
