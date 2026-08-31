@@ -3,6 +3,8 @@
 // Google Calendar API enabled. Read-only scope; the token never leaves the browser.
 import { VENUES } from '../data/events.js';
 import { identify } from './analytics.js';
+import { getPlaces } from './prefs.js';
+import { haversineKm } from './geo.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -139,7 +141,7 @@ const TBD_RE = /\btbd\b|somewhere|to be|irl\s*-|in person\s*-/i;
 const FLIGHT_RE = /\bflight\b|✈|airlines?\b|\b(UA|AA|DL|B6|WN|AS)\s?\d{2,4}\b/i;
 const HOLD_RE = /\bhold\b|\bmaybe\b|tentative/i;
 
-async function normalizeAll(rows, tz, mapsKey = null) {
+export async function normalizeAll(rows, tz, mapsKey = null) {
   const out = [];
   for (const { item, calId } of rows) {
     if (item.status === 'cancelled' || item.eventType === 'workingLocation' || item.eventType === 'birthday') continue;
@@ -151,9 +153,12 @@ async function normalizeAll(rows, tz, mapsKey = null) {
 
     const title = item.summary || '(untitled)';
     const locText = (item.location || '').trim();
-    const hasConf = !!(item.conferenceData || item.hangoutLink) || /zoom\.us|meet\.google/.test(item.description || '');
+    const hasConf = !!(item.conferenceData || item.hangoutLink) || /zoom\.us|meet\.google|teams\.microsoft|webex\.com/.test(item.description || '');
     const locIsUrl = VIRTUAL_RE.test(locText) && !/,/.test(locText);
     const virtual = (hasConf && !locText) || locIsUrl;
+    // Video link AND a physical address = hybrid invite. Whether the user is
+    // actually going there is decided in the plausibility pass below.
+    const hybrid = hasConf && !!locText && !locIsUrl;
     const kind = FLIGHT_RE.test(title) ? 'flight' : HOLD_RE.test(title) ? 'hold' : 'meeting';
     // Solo events (no other human attendees) are time blocks / reminders, not
     // meetings — they don't need a venue and must never raise location warnings.
@@ -188,8 +193,44 @@ async function normalizeAll(rows, tz, mapsKey = null) {
       solo: solo || undefined,
       kind,
       live: true,
+      _hybrid: hybrid || undefined,
     });
   }
+
+  // Plausibility pass for hybrid events (video link + physical address):
+  // organizers routinely put their own office on invites half the room dials
+  // into, and a naive "location wins" once routed a user across the Atlantic
+  // for a morning video call. But "link wins" is just as wrong — Workspace
+  // auto-attaches Meet links to genuine in-person meetings. So a hybrid
+  // event anchors in person only when its venue is plausibly reachable that
+  // day: near home/office, a flight destination, or a link-free in-person
+  // meeting. Otherwise it's treated as a call (address kept for display,
+  // placement overridable per event like any virtual meeting).
+  const places = getPlaces();
+  const bases = [places.home, places.office].filter(Boolean);
+  const NEAR_KM = 80;
+  const pointOf = (ev) => (ev.venue && VENUES[ev.venue]) || ev.geo || null;
+  for (const ev of out) {
+    if (!ev._hybrid) continue;
+    const pt = pointOf(ev);
+    if (!pt) {
+      // link + unresolvable location (a room name) — take the call
+      ev.virtual = true;
+      ev.tbd = undefined;
+      continue;
+    }
+    const anchors = out
+      .filter((o) => o !== ev && o.day === ev.day && !o._hybrid && (o.kind === 'flight' || !o.virtual))
+      .map(pointOf)
+      .filter(Boolean);
+    const candidates = [...bases, ...anchors];
+    if (candidates.length && !candidates.some((b) => haversineKm(b, pt) <= NEAR_KM)) {
+      ev.virtual = true;
+      ev.tbd = undefined;
+    }
+  }
+  for (const ev of out) delete ev._hybrid;
+
   return out;
 }
 
