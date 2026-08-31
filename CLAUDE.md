@@ -86,5 +86,10 @@ the page context with the bundle's key; referrer restrictions pass there).
 - iOS via Capacitor wrapper (auth foundation done — server code flow); needs
   Apple Developer account ($99/yr).
 - cal.com support in api/booking.js (Calendly only today).
+- Outlook support (post-launch, Jacob's explicit sequencing): Microsoft Graph
+  Calendars.Read via parallel api/auth/ms/* endpoints — same sealed-cookie
+  design, provider tag in the session; normalize Graph event shape (tz,
+  attendees, Teams links as virtual). Jacob registers the Azure app. Caveat:
+  locked-down M365 tenants need admin consent.
 - "Use secure flows" GCP checkup warning: resolved in practice by server flow;
   frontend GIS fallback still exists for dev.
