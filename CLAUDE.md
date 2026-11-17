@@ -50,6 +50,15 @@ Google OAuth app (branding + calendar.readonly scope both approved).
    surface reads through those, so never read `getEvents()` directly or the
    views will disagree. Keyed by Google's per-occurrence event id, so one
    date of a recurring series is overridden alone. Laze stays read-only.
+8. **Cross-city hops** (`FAR_KM` = 150 km straight-line, geo.js): `dayLegs`
+   marks them `intercity` — never a walk/drive/transit figure (a live report
+   showed "64,159 min walk" across the US), never sent to the paid Routes API,
+   no travel-block button. Flagged as a "Different cities" conflict only when
+   there isn't realistically time (`intercityMinutes`) and no flight on the
+   calendar spans the gap. Separately, `routableStops` drops a call that is
+   pinned only by the global default when the day's in-person meetings are
+   in another city (a call follows the user); a placement chosen for that
+   specific call is always kept.
 
 ## Infra
 
@@ -94,6 +103,16 @@ the page context with the bundle's key; referrer restrictions pass there).
 - iOS via Capacitor wrapper (auth foundation done — server code flow); needs
   Apple Developer account ($99/yr).
 - cal.com support in api/booking.js (Calendly only today).
+- Cross-device settings sync (decided Nov 2026, not yet): everything in
+  prefs/settings is per-browser today (home, office, favorites, working
+  hours, buffer, placements, overrides). Jacob wants the **database route**
+  eventually, to make Laze "a more legit app" — not the Drive app-data
+  folder. When built: the "nothing is stored on a server" copy in
+  privacy.html, the onboarding card, the Connections modal and the
+  static-landing block all change, and a delete-my-data path is needed.
+- Trip base ("where I'm staying these dates"): no concept for live users;
+  Jacob appears to set Home to his hotel as a workaround. Would also allow
+  flagging home-city recurring meetings automatically during a trip.
 - Outlook support (post-launch, Jacob's explicit sequencing): Microsoft Graph
   Calendars.Read via parallel api/auth/ms/* endpoints — same sealed-cookie
   design, provider tag in the session; normalize Graph event shape (tz,

@@ -125,6 +125,9 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                   <div className="stop-venue">
                     {ev.skipped ? (
                       'Ignored for travel and free time'
+                    ) : ev.virtual && v && !num ? (
+                      // default-placed call on a day spent in another city
+                      'Video call — not pinned, your in-person meetings are in another city'
                     ) : ev.override === 'remote' ? (
                       v ? `Taking it from ${v.label || v.name}` : 'Off the map — time still blocked'
                     ) : v && !ev.tbd ? (
@@ -144,7 +147,20 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                 </div>
               </div>
 
-              {leg && (
+              {leg && leg.intercity && (
+                <div className={`leg-row${leg.tight ? ' tight' : ''}`}>
+                  <span>{leg.km > 500 ? '✈' : '🚆'}</span>
+                  <span className="t">
+                    Different cities · {leg.va.hood || leg.va.name} → {leg.vb.hood || leg.vb.name}
+                    {leg.viaFlight
+                      ? ' · flight in between'
+                      : leg.gapMin >= 0
+                        ? ` · ${leg.gapMin} min gap${leg.tight ? ' — can’t be at both' : ''}`
+                        : ' · overlaps!'}
+                  </span>
+                </div>
+              )}
+              {leg && !leg.intercity && (
                 <div className={`leg-row${leg.tight ? ' tight' : ''}`}>
                   <span>{MODE_ICON[leg.mode]}</span>
                   <span className="t">

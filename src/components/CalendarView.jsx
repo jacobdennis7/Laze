@@ -150,12 +150,18 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
                   const mid = (minutesOfDay(l.from.end) + minutesOfDay(l.to.start)) / 2;
                   return (
                     <div className={`cal-travel${l.tight ? ' tight' : ''}`} key={i} style={{ top: yFor(mid) - 8 }}>
-                      <button
-                        onClick={() => onTravel && onTravel(l, d)}
-                        title="Add a travel block to your calendar"
-                      >
-                        {MODE_ICON[l.mode]} {l.mins}m{l.tight ? ` / ${l.gapMin}m gap` : ''}
-                      </button>
+                      {l.intercity ? (
+                        <button disabled title="These two are in different cities">
+                          {l.km > 500 ? '✈' : '🚆'} other city{l.tight ? ` / ${l.gapMin}m gap` : ''}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onTravel && onTravel(l, d)}
+                          title="Add a travel block to your calendar"
+                        >
+                          {MODE_ICON[l.mode]} {l.mins}m{l.tight ? ` / ${l.gapMin}m gap` : ''}
+                        </button>
+                      )}
                     </div>
                   );
                 })}

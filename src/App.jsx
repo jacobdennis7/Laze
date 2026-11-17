@@ -46,7 +46,8 @@ export default function App() {
     if (!mapsKey) return;
     const pairs = [];
     for (const d of days) {
-      for (const leg of dayLegs(d, mode)) pairs.push([leg.va, leg.vb]);
+      // cross-city hops never get a walk/drive figure, so don't pay to route them
+      for (const leg of dayLegs(d, mode)) if (!leg.intercity) pairs.push([leg.va, leg.vb]);
     }
     if (pairs.length) warmLegs(pairs, mode, mapsKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps

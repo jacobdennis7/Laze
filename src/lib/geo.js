@@ -23,6 +23,17 @@ export function travelMinutes(a, b, mode = 'drive') {
   return Math.round(4 + (km / speed) * 60);
 }
 
+// Beyond this straight-line distance two stops are in different cities: a
+// walk/drive/transit time between them is meaningless (and a wasted, billed
+// Routes request), so the hop is described as a trip instead.
+export const FAR_KM = 150;
+
+// Rough door-to-door minutes between cities: ground under ~500 km, air beyond
+// (flight time plus getting to and through two airports).
+export function intercityMinutes(km) {
+  return km <= 500 ? Math.round((km / 90) * 60 + 30) : Math.round((km / 750) * 60 + 180);
+}
+
 export function bestMode(a, b) {
   const km = haversineKm(a, b) * ROUTE_FACTOR;
   return km <= 1.3 ? 'walk' : 'drive';

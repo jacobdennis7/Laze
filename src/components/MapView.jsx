@@ -146,11 +146,14 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       const chip = L.marker(mid, {
         icon: L.divIcon({
           className: `leg-chip-label${leg.tight ? ' tight' : ''}`,
-          html: `<span title="Add a travel block to your calendar">${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
+          html: leg.intercity
+            ? `<span>${leg.km > 500 ? '✈' : '🚆'} different cities${leg.viaFlight ? '' : leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`
+            : `<span title="Add a travel block to your calendar">${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
           iconSize: [0, 0],
         }),
       }).addTo(layer);
-      chip.on('click', () => travelRef.current && travelRef.current(leg));
+      // a cross-city hop isn't a travel block you can drop on the calendar
+      if (!leg.intercity) chip.on('click', () => travelRef.current && travelRef.current(leg));
     });
 
     if (pts.length > 1) map.fitBounds(pts, { padding: [56, 56], maxZoom: 15 });

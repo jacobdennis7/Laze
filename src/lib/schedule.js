@@ -1,9 +1,9 @@
 import { VENUES, LODGING, HOME } from '../data/events.js';
 import { getEvents, loadSettings } from './store.js';
 import { liveMinutes } from './routes.js';
-import { resolvePlacement, getPlaces, getOverride } from './prefs.js';
+import { resolvePlacement, getPlaces, getOverride, getPlacement } from './prefs.js';
 import { toEpoch, eachDay } from './time.js';
-import { travelMinutes, venueOf, bestMode } from './geo.js';
+import { travelMinutes, venueOf, bestMode, haversineKm, FAR_KM, intercityMinutes } from './geo.js';
 
 // Where an event effectively happens: its real venue, or — for virtual meetings —
 // wherever the user says they'll take the call (home / office / other).
@@ -53,17 +53,49 @@ export function lodgingFor(day) {
 // Routable stops for a day: in-person meetings with coordinates, plus virtual
 // meetings the user has placed somewhere. Excludes home-city noise and TBDs.
 export function routableStops(day) {
-  return eventsForDay(day).filter((e) => !inactive(e) && !e.tbd && effectiveVenue(e));
+  const evs = eventsForDay(day).filter((e) => !inactive(e) && !e.tbd && effectiveVenue(e));
+  // A call pinned only by the global default follows the user: when the day's
+  // in-person meetings are in another city, pinning it at home would invent a
+  // cross-country trip. A placement chosen for that specific call is kept.
+  const anchors = evs.filter((e) => !e.virtual && e.kind !== 'flight').map(effectiveVenue);
+  if (!anchors.length) return evs;
+  return evs.filter((e) => {
+    if (!e.virtual || getPlacement(e.id)) return true;
+    const v = effectiveVenue(e);
+    return anchors.some((a) => haversineKm(a, v) <= FAR_KM);
+  });
 }
 
 // Travel legs between consecutive in-person stops, with gap feasibility.
 export function dayLegs(day, mode = 'drive') {
   const stops = routableStops(day);
+  const flights = eventsForDay(day).filter((e) => e.kind === 'flight' && !e.skipped);
   const legs = [];
   for (let i = 0; i < stops.length - 1; i++) {
     const a = stops[i], b = stops[i + 1];
     const va = effectiveVenue(a), vb = effectiveVenue(b);
     const gapMin = Math.round((toEpoch(b.start) - toEpoch(a.end)) / 60000);
+    const km = haversineKm(va, vb);
+    if (km > FAR_KM) {
+      // Different cities: no walk/drive figure. A flight on the calendar across
+      // the gap explains the trip; otherwise it only counts as a problem when
+      // there isn't realistically time to get there.
+      const viaFlight =
+        a.kind === 'flight' || b.kind === 'flight' ||
+        flights.some((f) => toEpoch(f.start) < toEpoch(b.start) && toEpoch(f.end) > toEpoch(a.end));
+      const mins = intercityMinutes(km);
+      legs.push({
+        from: a, to: b, va, vb, gapMin, mins, walkMins: Infinity, effMins: mins,
+        live: false,
+        mode: mode === 'auto' ? 'drive' : mode,
+        intercity: true,
+        km: Math.round(km),
+        viaFlight,
+        tight: !viaFlight && gapMin >= 0 && mins > gapMin,
+        overlap: gapMin < 0,
+      });
+      continue;
+    }
     const auto = bestMode(va, vb);
     const useMode = mode === 'auto' ? auto : mode;
     const live = liveMinutes(va, vb, useMode); // Google Routes figure when a key is set
@@ -156,6 +188,19 @@ export function findConflicts(start, end, mode = 'drive') {
     // 3. Tight transitions
     for (const leg of dayLegs(day, mode)) {
       if (leg.overlap) continue;
+      if (leg.intercity) {
+        // Only worth raising when both can't be attended in person.
+        if (leg.tight) {
+          out.push({
+            severity: 'high', day, type: 'Different cities',
+            title: `${leg.va.hood || leg.va.name} → ${leg.vb.hood || leg.vb.name} with ${leg.gapMin} min between`,
+            detail: `${leg.from.title} and ${leg.to.title} are too far apart to attend both in person.`,
+            fix: 'Open the one you won’t be at and set “This occurrence” to take it off the map, or move it.',
+            ids: [leg.from.id, leg.to.id],
+          });
+        }
+        continue;
+      }
       if (leg.tight) {
         out.push({
           severity: leg.effMins > leg.gapMin ? 'high' : 'med', day, type: 'Tight transfer',
