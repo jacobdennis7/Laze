@@ -46,7 +46,14 @@ export default function EventModal({ ev, onClose }) {
             <div className="field">
               <label>Where</label>
               <div>
-                {v && !ev.tbd ? (
+                {ev.kind === 'flight' && v && ev.destGeo ? (
+                  <>
+                    {v.name} → {ev.destGeo.name}
+                    <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+                      Departs {fmtTime(ev.start)} · lands {fmtTime(ev.end)}
+                    </div>
+                  </>
+                ) : v && !ev.tbd ? (
                   <>
                     {v.name} · {v.hood}
                     <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>{v.address}</div>

@@ -20,6 +20,15 @@ export function fmtTime(iso) {
   return m === 0 ? `${hh} ${ampm}` : `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+// Epoch ms → the same local-offset ISO form events use, in the offset of a
+// reference event string (e.g. "leave by" shown in the flight's own clock).
+export function isoLike(ms, refIso) {
+  const off = /[+-]\d{2}:\d{2}$/.test(refIso) ? refIso.slice(-6) : '+00:00';
+  const sign = off[0] === '-' ? -1 : 1;
+  const [h, m] = off.slice(1).split(':').map(Number);
+  return new Date(ms + sign * (h * 60 + m) * 60000).toISOString().slice(0, 19) + off;
+}
+
 export function fmtTimeShort(iso) {
   const { h, m } = localHM(iso);
   const ampm = h >= 12 ? 'p' : 'a';

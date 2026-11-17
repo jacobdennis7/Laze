@@ -66,6 +66,38 @@ export function routableStops(day) {
   });
 }
 
+// A flight has two ends. To make it you must be at the airport it leaves from
+// (its calendar location); once it lands you are at the airport named in its
+// title, when sync could resolve one. Everything else starts and ends in the
+// same place.
+export const arriveVenue = (ev) => effectiveVenue(ev);
+export const departVenue = (ev) => (ev.kind === 'flight' && ev.destGeo ? ev.destGeo : effectiveVenue(ev));
+
+// Minutes to be at the airport before departure.
+export const AIRPORT_LEAD_MIN = 90;
+
+// Airports worth pinning on a day's map: whichever end of each flight is in
+// the same city as the rest of the day — or, on a day with nothing else, as
+// home. The far end stays off so the map doesn't zoom out to a continent.
+export function airportStops(day) {
+  const stops = routableStops(day);
+  const flights = stops.filter((e) => e.kind === 'flight');
+  if (!flights.length) return [];
+  let anchors = stops.filter((e) => e.kind !== 'flight').map(effectiveVenue);
+  if (!anchors.length) {
+    const base = lodgingFor(day);
+    anchors = [base || effectiveVenue(flights[0])];
+  }
+  const local = (v) => anchors.some((a) => haversineKm(a, v) <= FAR_KM);
+  const out = [];
+  for (const ev of flights) {
+    const origin = effectiveVenue(ev);
+    if (local(origin)) out.push({ ev, v: origin, end: 'origin' });
+    if (ev.destGeo && local(ev.destGeo)) out.push({ ev, v: ev.destGeo, end: 'dest' });
+  }
+  return out;
+}
+
 // Travel legs between consecutive in-person stops, with gap feasibility.
 export function dayLegs(day, mode = 'drive') {
   const stops = routableStops(day);
@@ -73,7 +105,7 @@ export function dayLegs(day, mode = 'drive') {
   const legs = [];
   for (let i = 0; i < stops.length - 1; i++) {
     const a = stops[i], b = stops[i + 1];
-    const va = effectiveVenue(a), vb = effectiveVenue(b);
+    const va = departVenue(a), vb = arriveVenue(b);
     const gapMin = Math.round((toEpoch(b.start) - toEpoch(a.end)) / 60000);
     const km = haversineKm(va, vb);
     if (km > FAR_KM) {
@@ -103,11 +135,15 @@ export function dayLegs(day, mode = 'drive') {
     const walkMins = liveMinutes(va, vb, 'walk') ?? travelMinutes(va, vb, 'walk');
     // A hop is only tight if NO reasonable mode makes it (walking counts when short).
     const effMins = walkMins <= 25 ? Math.min(mins, walkMins) : mins;
+    // The ride to a flight isn't judged against the gap but against when you
+    // have to walk out the door: travel time plus the airport lead.
+    const leaveBy = b.kind === 'flight' ? toEpoch(b.start) - (AIRPORT_LEAD_MIN + mins) * 60000 : null;
     legs.push({
       from: a, to: b, va, vb, gapMin, mins, walkMins, effMins,
       live: live != null,
       mode: useMode,
-      tight: gapMin >= 0 && effMins + 10 > gapMin,
+      leaveBy,
+      tight: leaveBy != null ? toEpoch(a.end) > leaveBy : gapMin >= 0 && effMins + 10 > gapMin,
       overlap: gapMin < 0,
     });
   }
@@ -201,6 +237,8 @@ export function findConflicts(start, end, mode = 'drive') {
         }
         continue;
       }
+      // the ride to a flight is covered by the Airport run rule above
+      if (leg.to.kind === 'flight') continue;
       if (leg.tight) {
         out.push({
           severity: leg.effMins > leg.gapMin ? 'high' : 'med', day, type: 'Tight transfer',
@@ -317,8 +355,9 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
 }
 
 function mkWindow(day, s, e, before, after, offset) {
-  const vb = before ? effectiveVenue(before) : null;
-  const va = after ? effectiveVenue(after) : null;
+  // after a flight you're at the airport it lands at, not the one it left from
+  const vb = before ? departVenue(before) : null;
+  const va = after ? arriveVenue(after) : null;
   const lodging = lodgingFor(day);
   return {
     day, s, e,

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
 import { calColor } from '../lib/colors.js';
-import { eventsForDay, dayLegs, routableStops, lodgingFor, effectiveVenue } from '../lib/schedule.js';
+import { eventsForDay, dayLegs, routableStops, lodgingFor, effectiveVenue, airportStops, departVenue } from '../lib/schedule.js';
 import { gmapsRoute, gmapsDir, gmapsPlace, MODE_ICON, MODE_LABEL } from '../lib/geo.js';
 import { getPlaces, getPlacement, setPlacement, setPlacementGeo } from '../lib/prefs.js';
-import { fmtTime, fmtDayLong, toEpoch } from '../lib/time.js';
+import { fmtTime, fmtDayLong, toEpoch, isoLike } from '../lib/time.js';
 import AddressInput from './AddressInput.jsx';
 
 // Dropdown on virtual cards: where is this call being taken from?
@@ -48,7 +48,13 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
   const stops = routableStops(day);
   const lodging = lodgingFor(day);
   const banner = BANNERS.find((b) => day >= b.from && day <= b.to);
-  const routeUrl = gmapsRoute([...(lodging ? [lodging] : []), ...stops.filter((s) => s.kind !== 'flight').map(effectiveVenue)]);
+  // The Google Maps route visits the day's stops in order, including whichever
+  // airport is local that day, so the airport run is part of it.
+  const airports = airportStops(day);
+  const routePts = stops.flatMap((s) =>
+    s.kind === 'flight' ? airports.filter((a) => a.ev.id === s.id).map((a) => a.v) : [effectiveVenue(s)]
+  );
+  const routeUrl = gmapsRoute([...(lodging ? [lodging] : []), ...routePts]);
 
   const stopIndex = new Map(stops.filter((s) => s.kind !== 'flight').map((s, i) => [s.id, i + 1]));
   const legAfter = new Map(legs.map((l) => [l.from.id, l]));
@@ -130,6 +136,12 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                       'Video call — not pinned, your in-person meetings are in another city'
                     ) : ev.override === 'remote' ? (
                       v ? `Taking it from ${v.label || v.name}` : 'Off the map — time still blocked'
+                    ) : ev.kind === 'flight' && v && ev.destGeo ? (
+                      <>
+                        <a href={gmapsPlace(v)} target="_blank" rel="noreferrer">{v.name}</a>
+                        {' → '}
+                        <a href={gmapsPlace(ev.destGeo)} target="_blank" rel="noreferrer">{ev.destGeo.name}</a>
+                      </>
                     ) : v && !ev.tbd ? (
                       <a href={gmapsPlace(v)} target="_blank" rel="noreferrer">
                         {v.name} · {v.hood}
@@ -165,21 +177,25 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                   <span>{MODE_ICON[leg.mode]}</span>
                   <span className="t">
                     {leg.live ? '' : '~'}{leg.mins} min {MODE_LABEL[leg.mode]}{leg.live ? ' ·  live' : ''}
-                    {leg.gapMin >= 0 ? ` · ${leg.gapMin} min gap` : ' · overlaps!'}
+                    {leg.leaveBy != null
+                      ? ` · leave by ${fmtTime(isoLike(leg.leaveBy, leg.to.start))}${leg.tight ? ' — too late!' : ''}`
+                      : leg.gapMin >= 0 ? ` · ${leg.gapMin} min gap` : ' · overlaps!'}
                   </span>
                   {leg.mode !== 'walk' && leg.walkMins <= 25 && <span className="t">(walk {leg.walkMins})</span>}
                   <a href={gmapsDir(leg.va, leg.vb, leg.mode)} target="_blank" rel="noreferrer">
                     gmaps ↗
                   </a>
-                  <button className="leg-add" onClick={() => onTravel && onTravel(leg)} title="Add a travel block to your calendar">
-                    ＋ block
-                  </button>
+                  {leg.leaveBy == null && (
+                    <button className="leg-add" onClick={() => onTravel && onTravel(leg)} title="Add a travel block to your calendar">
+                      ＋ block
+                    </button>
+                  )}
                 </div>
               )}
               {free && (
                 <div className="free-row">
                   <b>{Math.floor(free.gap / 60)}h{free.gap % 60 ? ` ${free.gap % 60}m` : ''}</b> open after this —{' '}
-                  {effectiveVenue(free.from) ? `you'll be in ${effectiveVenue(free.from).hood}` : 'location flexible'}
+                  {departVenue(free.from) ? `you'll be in ${departVenue(free.from).hood}` : 'location flexible'}
                 </div>
               )}
             </React.Fragment>

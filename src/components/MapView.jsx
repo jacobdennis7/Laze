@@ -5,8 +5,8 @@ import { fetchNearbySpots, travelMinutes, MODE_LABEL } from '../lib/geo.js';
 import { liveMinutes } from '../lib/routes.js';
 import { loadSettings } from '../lib/store.js';
 import { track } from '../lib/analytics.js';
-import { routableStops, dayLegs, lodgingFor, effectiveVenue } from '../lib/schedule.js';
-import { fmtTime } from '../lib/time.js';
+import { routableStops, dayLegs, lodgingFor, effectiveVenue, airportStops } from '../lib/schedule.js';
+import { fmtTime, isoLike } from '../lib/time.js';
 import { MODE_ICON } from '../lib/geo.js';
 import MapSearch from './MapSearch.jsx';
 
@@ -99,7 +99,12 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
 
     const stops = routableStops(day).filter((s) => s.kind !== 'flight');
     const placed = deoverlap(stops);
-    const legs = dayLegs(day, mode).filter((l) => l.from.kind !== 'flight' && l.to.kind !== 'flight');
+    // The ride to or from a local airport is drawn; the flight itself (a hop
+    // to another city) is not.
+    const legs = dayLegs(day, mode).filter(
+      (l) => !((l.from.kind === 'flight' || l.to.kind === 'flight') && l.intercity)
+    );
+    const airports = airportStops(day);
     const lodging = lodgingFor(day);
     const pts = [];
 
@@ -141,6 +146,27 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       pts.push([lat, lng]);
     });
 
+    airports.forEach(({ ev, v, end }) => {
+      const m = L.marker([v.lat, v.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="wp-marker airport" style="width:28px;height:28px">✈</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+        zIndexOffset: 90,
+      }).addTo(layer);
+      m.bindTooltip(
+        `<b>${ev.title}</b><span class="sub">${end === 'dest' ? `Lands ${fmtTime(ev.end)}` : `Departs ${fmtTime(ev.start)}`} · ${v.name}</span>`,
+        { className: 'wp-tip' }
+      );
+      m.on('click', () => {
+        if (pickedRef.current) setLinked({ ev, venue: v });
+        else if (selectRef.current) selectRef.current(ev);
+      });
+      pts.push([v.lat, v.lng]);
+    });
+
     legs.forEach((leg) => {
       L.polyline(
         [
@@ -155,12 +181,14 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
           className: `leg-chip-label${leg.tight ? ' tight' : ''}`,
           html: leg.intercity
             ? `<span>${leg.km > 500 ? '✈' : '🚆'} different cities${leg.viaFlight ? '' : leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`
-            : `<span title="Add a travel block to your calendar">${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
+            : leg.leaveBy != null
+              ? `<span>${MODE_ICON[leg.mode]} ${leg.mins} min · leave by ${fmtTime(isoLike(leg.leaveBy, leg.to.start))}</span>`
+              : `<span title="Add a travel block to your calendar">${MODE_ICON[leg.mode]} ${leg.mins} min${leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`,
           iconSize: [0, 0],
         }),
       }).addTo(layer);
-      // a cross-city hop isn't a travel block you can drop on the calendar
-      if (!leg.intercity) chip.on('click', () => travelRef.current && travelRef.current(leg));
+      // a cross-city hop or the ride to a flight isn't a plain travel block
+      if (!leg.intercity && leg.leaveBy == null) chip.on('click', () => travelRef.current && travelRef.current(leg));
     });
 
     if (pts.length > 1) map.fitBounds(pts, { padding: [56, 56], maxZoom: 15 });

@@ -405,6 +405,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
 }
 .wp-marker.lodging { background: #1c1e21; border-radius: 7px; font-size: 12px; }
+.wp-marker.airport { background: #1c1e21; font-size: 14px; }
 .leaflet-tooltip.wp-tip {
   border-radius: 8px; border: 1px solid var(--hairline); box-shadow: var(--shadow);
   font-family: var(--sans); font-size: 12px; padding: 6px 10px;

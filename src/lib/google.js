@@ -141,6 +141,16 @@ const TBD_RE = /\btbd\b|somewhere|to be|irl\s*-|in person\s*-/i;
 const FLIGHT_RE = /\bflight\b|✈|airlines?\b|\b(UA|AA|DL|B6|WN|AS)\s?\d{2,4}\b/i;
 const HOLD_RE = /\bhold\b|\bmaybe\b|tentative/i;
 
+// Where a flight is going, from its title: an airport-code pair wins
+// ("UA 1593 · EWR → SFO" → "SFO"), else the city in Google's own wording
+// ("Flight to Denver (UA 123)" → "Denver"). Null when unsure.
+export function flightDestination(title) {
+  const pair = title.match(/\b([A-Z]{3})\s*(?:→|➔|->|–|—|-|\bto\b)\s*([A-Z]{3})\b/);
+  if (pair) return pair[2];
+  const to = title.match(/\bflight to ([^()[\]·|,]+?)\s*(?:\(|$)/i);
+  return to ? to[1].trim() : null;
+}
+
 export async function normalizeAll(rows, tz, mapsKey = null) {
   const out = [];
   for (const { item, calId } of rows) {
@@ -175,6 +185,20 @@ export async function normalizeAll(rows, tz, mapsKey = null) {
     }
     const tbd = !virtual && kind !== 'flight' && !solo && (!locText || locIsUrl || isPlaceholder || (!venueKey && !geo));
 
+    // A flight's location field is the airport it leaves from. Where it lands
+    // is only in the title ("Flight to Denver (UA 123)", "EWR → SFO"),
+    // so resolve that too — the ride from the airport needs a starting point.
+    let destGeo = null;
+    if (kind === 'flight') {
+      const dest = flightDestination(title);
+      if (dest) {
+        const found = await geocode(`${dest} airport`, mapsKey);
+        const origin = (venueKey && VENUES[venueKey]) || geo;
+        // only trust it if it's genuinely somewhere else than the departure end
+        if (found && (!origin || haversineKm(origin, found) > 50)) destGeo = found;
+      }
+    }
+
     out.push({
       id: item.id,
       gid: item.id,
@@ -187,6 +211,7 @@ export async function normalizeAll(rows, tz, mapsKey = null) {
       org: guessOrg(item),
       venue: venueKey,
       geo, // {name,address,lat,lng,hood} for ad-hoc geocoded venues
+      destGeo: destGeo || undefined, // flights only: the arrival airport
       locationText: locText || undefined,
       virtual: virtual || undefined,
       tbd: tbd || undefined,

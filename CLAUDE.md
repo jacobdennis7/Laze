@@ -71,6 +71,19 @@ Google OAuth app (branding + calendar.readonly scope both approved).
    pinned only by the global default when the day's in-person meetings are
    in another city (a call follows the user); a placement chosen for that
    specific call is always kept.
+9. **Flights have two ends.** A flight event's location is its *departure*
+   airport; the arrival airport is resolved at sync from the title
+   (`flightDestination` → `destGeo`: "Flight to Denver (UA 123)",
+   "EWR → SFO"). Routing uses `arriveVenue` (where you must be for an event
+   to start) and `departVenue` (where you are when it ends) — only flights
+   differ. `airportStops(day)` pins whichever end is in the same city as the
+   day's other stops (else home), never the far end. A leg into a flight
+   carries `leaveBy` (start − `AIRPORT_LEAD_MIN` 90 − travel) and is judged
+   against that, not the gap; the Airport-run conflict covers it, so no
+   Tight-transfer card is raised for it. Known gaps: an ambiguous city name
+   ("Flight to Portland", multi-airport cities) can resolve to the wrong
+   airport, and on a day with no other stop in the trip city the airport is
+   only pinned if home is there (needs the trip-base concept).
 
 ## Infra
 
