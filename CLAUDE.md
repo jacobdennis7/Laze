@@ -19,6 +19,13 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   (authorization-code flow; refresh token AES-sealed in httpOnly cookie
   `laze_session`, server stores NOTHING), `booking.js` (Calendly availability
   proxy, allowlisted), `_lib/session.js`.
+- Header wordmark: `src/components/Wordmark.jsx` — Jacob's own vector (Nov
+  2026), path data copied verbatim, filled with `currentColor`; its blue
+  (#0F2DF7) is set on `.brand .logo` in styles.css. Note this is brighter
+  than the #2B3BE2 on the icon and link-preview card (not yet reconciled).
+  It is a link that resets the app to its opening state (`goHome` in
+  App.jsx). On phones it stays 18px tall: wider and the date picker wraps
+  to a third header row.
 - `public/` — `icon.svg` (route-L brand mark, royal blue #2B3BE2),
   `privacy.html` (required by Google verification — keep truthful).
 - Personal calendar snapshot: `src/data/events.local.js` — **gitignored AND

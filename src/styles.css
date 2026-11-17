@@ -48,13 +48,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   z-index: 1200;
 }
 .brand { display: flex; align-items: center; gap: 8px; margin-right: 4px; }
-.brand .logo { display: inline-flex; align-items: center; }
-.logo-glyph { width: 30px; height: 30px; margin-right: -7px; transform: translateY(-2px); }
-.logo-text {
-  font-family: 'Varela Round', ui-rounded, -apple-system, sans-serif;
-  font-size: 21.5px; color: #2B3BE2; letter-spacing: -0.01em;
-  line-height: 1; padding-bottom: 2px;
-}
+/* The wordmark's blue lives here; the SVG fills with currentColor. */
+.brand .logo { display: inline-flex; align-items: center; color: #0F2DF7; border-radius: 6px; }
+.brand .logo:hover { text-decoration: none; opacity: 0.85; }
+.wordmark { height: 26px; width: auto; display: block; }
 .topbar-break { display: none; }
 .src-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -607,7 +604,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   .dayfilter-chips button { font-size: 13px; padding: 6px 12px; }
   .show-more { padding: 10px 0; }
   .topbar { gap: 8px; padding: 8px 10px; }
-  .brand .logo { font-size: 15px; }
+  .wordmark { height: 22px; }
 
   /* day chips scroll in one row; toggles move to the bottom, clear of them */
   .day-chips { max-width: calc(100% - 24px); right: 12px; }
@@ -638,6 +635,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   /* iOS zooms the page when a focused input is under 16px — never let that happen */
   input, select, textarea { font-size: 16px !important; }
 }
+/* On phones the wordmark keeps the old logo's ~60px footprint: any wider and
+   the date picker wraps to a third header row (worst with a cross-month
+   label like "Nov 30 – Dec 3"). */
+@media (max-width: 480px) { .wordmark { height: 18px; } }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }
 
 /* ---------- Suggest/Spot slot list: day filter + progressive reveal ---------- */

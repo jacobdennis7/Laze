@@ -11,6 +11,7 @@ import SpotSuggestModal from './components/SpotSuggestModal.jsx';
 import TravelBlockModal from './components/TravelBlockModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
 import MapView from './components/MapView.jsx';
+import Wordmark from './components/Wordmark.jsx';
 import DayPanel from './components/DayPanel.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import ConflictsPanel from './components/ConflictsPanel.jsx';
@@ -57,6 +58,27 @@ export default function App() {
     setRange(r);
     setActiveDay(r.start);
     track('range_changed', { days: eachDay(r.start, r.end).length });
+  }
+
+  // The wordmark is the way home: back to the screen the app opens on — map
+  // view, this week, nothing open. It stays a real link, so cmd/ctrl-click
+  // and middle-click still open a new tab.
+  const [homeKey, setHomeKey] = useState(0);
+  function goHome(e) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    setShowConflicts(false);
+    setShowSuggest(false);
+    setShowSettings(false);
+    setSelectedEvent(null);
+    setSpotSuggest(null);
+    setTravelBlock(null);
+    setShowItin(false);
+    setView('map');
+    setRange(DEFAULT_RANGE);
+    setActiveDay(DEFAULT_RANGE.start);
+    setHomeKey((k) => k + 1); // remounts the map: clears search/spots modes, refits
+    track('home_clicked');
   }
 
   // Returning users sync with zero clicks. Server auth (deployed): the encrypted
@@ -170,14 +192,9 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo" aria-label="Laze">
-            <svg className="logo-glyph" viewBox="0 0 96 96" aria-hidden="true">
-              <path d="M27 40 L27 60 Q27 71 38 71 L50 71" fill="none" stroke="#2B3BE2" strokeWidth="11" strokeLinecap="round" />
-              <circle cx="27" cy="24" r="12" fill="none" stroke="#2B3BE2" strokeWidth="9.5" />
-              <circle cx="65" cy="71" r="10.5" fill="none" stroke="#2B3BE2" strokeWidth="8.5" />
-            </svg>
-            <span className="logo-text">aze</span>
-          </span>
+          <a className="logo" href="/" onClick={goHome} aria-label="Laze — back to home" title="Back to home">
+            <Wordmark />
+          </a>
           <button className="src-chip" onClick={() => setShowSettings(true)} title="Data source — click to manage connections">
             <span className={`dot ${store.source}`} />
             {syncLabel}
@@ -226,6 +243,7 @@ export default function App() {
           <>
             <div className="map-pane">
               <MapView
+                key={homeKey}
                 day={activeDay}
                 mode={mode}
                 dataVersion={`${store.version}.${rVersion}.${pVersion}`}
