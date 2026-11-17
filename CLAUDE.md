@@ -42,6 +42,14 @@ Google OAuth app (branding + calendar.readonly scope both approved).
    (searchNearby's circle bled past screen edges) + client-side bounds filter.
 6. Solo calendar events (no other human attendees) are time blocks: never mark
    tbd / raise location conflicts for them.
+7. **Per-occurrence overrides** (`prefs.js` getOverride/setOverride, set from
+   the event popup): `remote` = not there in person (becomes a call: off the
+   map unless placed, time still blocked); `skip` = ignored (no pin, no
+   conflicts, time counts as free). Applied on read by `withOverride` in the
+   two `schedule.js` accessors (`eventsForDay`/`eventsForRange`) — every
+   surface reads through those, so never read `getEvents()` directly or the
+   views will disagree. Keyed by Google's per-occurrence event id, so one
+   date of a recurring series is overridden alone. Laze stays read-only.
 
 ## Infra
 

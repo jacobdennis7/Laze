@@ -57,7 +57,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
   // event running "inside" a flight (or another meeting) can't fake an open gap.
   const freeGaps = [];
   const timed = evs
-    .filter((e) => !e.homeCity && e.kind !== 'hold')
+    .filter((e) => !e.homeCity && !e.skipped && e.kind !== 'hold')
     .map((e) => ({ s: toEpoch(e.start), e: toEpoch(e.end), ev: e }))
     .sort((a, b) => a.s - b.s);
   const merged = [];
@@ -98,14 +98,14 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
           return (
             <React.Fragment key={ev.id}>
               <div
-                className={`stop-card${ev.note || ev.tbd ? ' flagged' : ''} clickable`}
+                className={`stop-card${(ev.note || ev.tbd) && !ev.skipped ? ' flagged' : ''}${ev.skipped ? ' skipped' : ''} clickable`}
                 onClick={(e) => { if (e.target.closest('a')) return; onSelect && onSelect(ev); }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && onSelect && onSelect(ev)}
               >
                 <div className={`stop-num${!num ? ' virtual' : ''}`} style={num ? { '--hood': color } : undefined}>
-                  {ev.kind === 'flight' ? '✈' : num || (ev.virtual ? '▶' : '?')}
+                  {ev.kind === 'flight' ? '✈' : num || (ev.skipped ? '–' : ev.virtual ? '▶' : '?')}
                 </div>
                 <div className="stop-body">
                   <div className="stop-time">
@@ -114,14 +114,20 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                   <div className="stop-title">
                     {ev.title}
                     {ev.org ? <span className="org"> · {ev.org}</span> : null}
-                    {ev.tbd && <span className="chip tbd">TBD</span>}
-                    {ev.virtual && <span className="chip virtual">Virtual</span>}
+                    {ev.tbd && !ev.skipped && <span className="chip tbd">TBD</span>}
+                    {ev.virtual && !ev.override && <span className="chip virtual">Virtual</span>}
+                    {ev.override === 'remote' && <span className="chip override">Not in person</span>}
+                    {ev.skipped && <span className="chip override">Skipping</span>}
                     {ev.kind === 'hold' && <span className="chip hold">Hold</span>}
                     {ev.kind === 'flight' && <span className="chip flight">Flight</span>}
                     {ev.homeCity && <span className="chip ny">NYC event</span>}
                   </div>
                   <div className="stop-venue">
-                    {v && !ev.tbd ? (
+                    {ev.skipped ? (
+                      'Ignored for travel and free time'
+                    ) : ev.override === 'remote' ? (
+                      v ? `Taking it from ${v.label || v.name}` : 'Off the map — time still blocked'
+                    ) : v && !ev.tbd ? (
                       <a href={gmapsPlace(v)} target="_blank" rel="noreferrer">
                         {v.name} · {v.hood}
                       </a>
@@ -134,7 +140,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                     )}
                   </div>
                   {ev.note && <div className="stop-note">⚑ {ev.note}</div>}
-                  {ev.virtual && <PlacementPicker ev={ev} />}
+                  {ev.virtual && !ev.skipped && <PlacementPicker ev={ev} />}
                 </div>
               </div>
 

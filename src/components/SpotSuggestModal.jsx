@@ -35,7 +35,7 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
     const hour = +customTime.slice(0, 2);
     const kind = spot.type === 'restaurant' && hour >= 17 ? 'Dinner' : TYPE_TITLE[spot.type] || 'Meet';
     const clash = eventsForDay(day).find(
-      (e) => !e.homeCity && e.kind !== 'hold' && toEpoch(e.start) < endMs && startMs < toEpoch(e.end)
+      (e) => !e.homeCity && !e.skipped && e.kind !== 'hold' && toEpoch(e.start) < endMs && startMs < toEpoch(e.end)
     );
     return {
       url: gcalTemplate({ title: `${kind} — ${spot.name}`, location, details: 'Scheduled via Laze', startMs, endMs, offset }),

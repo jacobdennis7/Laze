@@ -3,6 +3,7 @@
 // pre-resolved from the AddressInput autocomplete.
 
 const LS = 'laze-places';
+const MAX_OVERRIDES = 300;
 let cache = null;
 let version = 0;
 const listeners = new Set();
@@ -13,6 +14,15 @@ function load() {
     cache.favorites ||= [];
     cache.placements ||= {};
     cache.virtualDefault ||= 'none'; // 'none' | 'home' | 'office'
+    cache.overrides ||= {};
+    // Overrides are per occurrence, so they accumulate. Keep the store bounded
+    // by dropping the oldest dates — never by age alone, which would silently
+    // undo an override on a week the user scrolled back to.
+    const entries = Object.entries(cache.overrides);
+    if (entries.length > MAX_OVERRIDES) {
+      entries.sort((a, b) => (a[1].day < b[1].day ? 1 : -1));
+      cache.overrides = Object.fromEntries(entries.slice(0, MAX_OVERRIDES));
+    }
   }
   return cache;
 }
@@ -84,6 +94,24 @@ export function setPlacement(evId, placement) {
 export function setPlacementGeo(evId, place) {
   load();
   cache.placements[evId] = { type: 'other', geo: place };
+  save();
+}
+
+// ---- per-occurrence attendance override ----
+// 'remote' = not there in person: treated as a call (off the map unless placed,
+//            time still blocked).
+// 'skip'   = ignored entirely: off the map, no conflicts, time counts as free.
+// Keyed by the event id, which Google makes unique per occurrence, so one date
+// of a recurring series can be overridden without touching the rest. Laze is
+// read-only: this never changes the user's calendar.
+export function getOverride(evId) {
+  return load().overrides[evId]?.mode || null;
+}
+
+export function setOverride(ev, mode) {
+  load();
+  if (!mode) delete cache.overrides[ev.id];
+  else cache.overrides[ev.id] = { mode, day: ev.day };
   save();
 }
 

@@ -1,7 +1,7 @@
 import { VENUES, LODGING, HOME } from '../data/events.js';
 import { getEvents, loadSettings } from './store.js';
 import { liveMinutes } from './routes.js';
-import { resolvePlacement, getPlaces } from './prefs.js';
+import { resolvePlacement, getPlaces, getOverride } from './prefs.js';
 import { toEpoch, eachDay } from './time.js';
 import { travelMinutes, venueOf, bestMode } from './geo.js';
 
@@ -12,14 +12,33 @@ export function effectiveVenue(ev) {
   return resolvePlacement(ev);
 }
 
+// The user's per-occurrence override is applied on read, in the two accessors
+// every surface goes through, so the map, itinerary, calendar, conflicts and
+// free windows can never disagree about it.
+function withOverride(e) {
+  const mode = getOverride(e.id);
+  if (!mode) return e;
+  if (mode === 'skip') return { ...e, skipped: true, override: 'skip' };
+  // 'remote': an in-person event the user won't be at behaves like a call.
+  return e.virtual ? e : { ...e, virtual: true, tbd: undefined, override: 'remote' };
+}
+
+// Events that sit on the calendar but that the user isn't really doing:
+// demo home-city phantoms and occurrences marked as skipped.
+const inactive = (e) => e.homeCity || e.skipped;
+
 export function eventsForRange(start, end) {
-  return getEvents().filter((e) => e.day >= start && e.day <= end && !e.hidden).sort(
-    (a, b) => toEpoch(a.start) - toEpoch(b.start)
-  );
+  return getEvents()
+    .filter((e) => e.day >= start && e.day <= end && !e.hidden)
+    .map(withOverride)
+    .sort((a, b) => toEpoch(a.start) - toEpoch(b.start));
 }
 
 export function eventsForDay(day) {
-  return getEvents().filter((e) => e.day === day && !e.hidden).sort((a, b) => toEpoch(a.start) - toEpoch(b.start));
+  return getEvents()
+    .filter((e) => e.day === day && !e.hidden)
+    .map(withOverride)
+    .sort((a, b) => toEpoch(a.start) - toEpoch(b.start));
 }
 
 export function lodgingFor(day) {
@@ -34,7 +53,7 @@ export function lodgingFor(day) {
 // Routable stops for a day: in-person meetings with coordinates, plus virtual
 // meetings the user has placed somewhere. Excludes home-city noise and TBDs.
 export function routableStops(day) {
-  return eventsForDay(day).filter((e) => !e.homeCity && !e.tbd && effectiveVenue(e));
+  return eventsForDay(day).filter((e) => !inactive(e) && !e.tbd && effectiveVenue(e));
 }
 
 // Travel legs between consecutive in-person stops, with gap feasibility.
@@ -70,8 +89,9 @@ export function findConflicts(start, end, mode = 'drive') {
   const days = eachDay(start, end);
 
   for (const day of days) {
-    const evs = eventsForDay(day).filter((e) => e.kind !== 'flight');
-    const all = eventsForDay(day);
+    // A skipped occurrence raises nothing: the user already dealt with it.
+    const all = eventsForDay(day).filter((e) => !e.skipped);
+    const evs = all.filter((e) => e.kind !== 'flight');
     const flights = all.filter((e) => e.kind === 'flight');
 
     // 1. Overlaps (ignore pairs where one is a home-city phantom — those get their own card)
@@ -206,7 +226,7 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
   const bufMs = (bufferMin ?? settings.bufferMin ?? 0) * 60000;
   const out = [];
   for (const day of eachDay(start, end)) {
-    const evs = eventsForDay(day).filter((e) => !e.homeCity && e.kind !== 'hold');
+    const evs = eventsForDay(day).filter((e) => !inactive(e) && e.kind !== 'hold');
     const busy = evs
       .map((e) => {
         // A flight blocks ~2h10m before wheels-up (airport + ride) and ~35m after landing (deplane, bags, car).

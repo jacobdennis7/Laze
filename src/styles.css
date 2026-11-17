@@ -223,6 +223,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .chip.hold { background: var(--warn-bg); color: var(--warn); }
 .chip.flight { background: #e8f0fe; color: var(--accent); }
 .chip.ny { background: #f3e8fd; color: #7b4bbd; }
+.chip.override { background: #f3e8fd; color: #7b4bbd; }
+.stop-card.skipped { opacity: 0.6; }
+.stop-card.skipped .stop-title { text-decoration: line-through; text-decoration-color: var(--muted); }
+.stop-card.skipped .chip { text-decoration: none; display: inline-block; }
 
 .leg-row {
   display: flex; align-items: center; gap: 8px;

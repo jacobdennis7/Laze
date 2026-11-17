@@ -2,6 +2,8 @@ import React from 'react';
 import { GIDS, CAL_EMAILS, PERSONAL_IDS, HOOD_COLORS } from '../data/events.js';
 import { calColor } from '../lib/colors.js';
 import { venueOf, gmapsPlace } from '../lib/geo.js';
+import { getOverride, setOverride } from '../lib/prefs.js';
+import { track } from '../lib/analytics.js';
 import { fmtTime, fmtDayLong } from '../lib/time.js';
 
 function gcalLink(ev) {
@@ -17,6 +19,16 @@ export default function EventModal({ ev, onClose }) {
   const v = venueOf(ev);
   const color = calColor(ev) || (v ? HOOD_COLORS[v.hood] || '#5a6572' : ev.virtual ? '#8C929C' : '#C0473E');
   const gcal = gcalLink(ev);
+  const override = getOverride(ev.id);
+  // "Not there in person" only makes sense for an event that isn't already a call.
+  const inPerson = !ev.virtual || ev.override === 'remote';
+
+  function changeOverride(value) {
+    const mode = value === 'default' ? null : value;
+    setOverride(ev, mode);
+    track('event_override_set', { mode: mode || 'default' });
+  }
+
   return (
     <>
       <div className="scrim" onClick={onClose} />
@@ -55,6 +67,20 @@ export default function EventModal({ ev, onClose }) {
               <div className="field">
                 <label>Heads-up</label>
                 <div style={{ color: 'var(--warn)' }}>⚑ {ev.note}</div>
+              </div>
+            )}
+            {ev.kind !== 'flight' && (
+              <div className="field">
+                <label>This occurrence</label>
+                <select value={override || 'default'} onChange={(e) => changeOverride(e.target.value)} aria-label="How to treat this occurrence">
+                  <option value="default">As scheduled{inPerson ? ' — at the venue' : ''}</option>
+                  {inPerson && <option value="remote">Not there in person — keep the time blocked</option>}
+                  <option value="skip">Skipping it — ignore for travel and free time</option>
+                </select>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 5, lineHeight: 1.45 }}>
+                  Only changes how Laze treats this date. Your Google Calendar isn't touched, and other
+                  dates of a recurring event are unaffected.
+                </div>
               </div>
             )}
             <div className="copy-row" style={{ marginTop: 4, flexWrap: 'wrap' }}>

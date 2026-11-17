@@ -123,7 +123,7 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
                 return (
                   <button
                     key={ev.id}
-                    className={`cal-ev${ev.virtual ? ' virtual' : ''}${ev.tbd && !ev.virtual ? ' tbd-ev' : ''}${ev.homeCity ? ' ny-ev' : ''}`}
+                    className={`cal-ev${ev.virtual ? ' virtual' : ''}${ev.tbd && !ev.virtual && !ev.skipped ? ' tbd-ev' : ''}${ev.homeCity || ev.skipped ? ' ny-ev' : ''}`}
                     style={{
                       top: yFor(s),
                       height: Math.max((e - s) * PX_PER_MIN - 2, 17),

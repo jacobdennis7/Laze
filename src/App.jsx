@@ -230,6 +230,7 @@ export default function App() {
                 dataVersion={`${store.version}.${rVersion}.${pVersion}`}
                 onSpotSuggest={setSpotSuggest}
                 onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
+                onSelect={setSelectedEvent}
               />
               <div className="day-chips" role="tablist" aria-label="Day">
                 {days.map((d, i) => (

@@ -43,7 +43,7 @@ function deoverlap(stops) {
   });
 }
 
-export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel }) {
+export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect }) {
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const spotLayerRef = useRef(null);
@@ -55,6 +55,8 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
   suggestRef.current = onSpotSuggest;
   const travelRef = useRef(onTravel);
   travelRef.current = onTravel;
+  const selectRef = useRef(onSelect);
+  selectRef.current = onSelect;
   const genRef = useRef(0); // invalidates in-flight searches on toggle-off / re-search
   const spotCacheRef = useRef(new Map());
   const searchRef = useRef(null);
@@ -123,9 +125,11 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         `<b>${fmtTime(ev.start)} · ${ev.title}</b><span class="sub">${ev.virtual ? `Virtual · taken from ${v.label || v.name}` : `${v.name} — ${v.hood}`}</span>`,
         { className: 'wp-tip' }
       );
-      // In search mode with a place picked, tapping a meeting measures the hop to it.
+      // In search mode with a place picked, tapping a meeting measures the hop to
+      // it; otherwise a pin opens its event, where it can be taken off the map.
       m.on('click', () => {
         if (pickedRef.current) setLinked({ ev, venue: v });
+        else if (selectRef.current) selectRef.current(ev);
       });
       pts.push([lat, lng]);
     });
