@@ -8,6 +8,10 @@
   --hairline-2: #cfcfca;
   --accent: #1a73e8;
   --accent-ink: #ffffff;
+  /* The one brand blue (from the wordmark). The icon SVGs, the link-preview
+     card source and the static landing heading repeat it as a literal —
+     change all of them together. */
+  --brand: #0F2DF7;
   --alert: #c5321f;
   --alert-bg: #fdeeea;
   --warn: #b8873a;
@@ -48,8 +52,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   z-index: 1200;
 }
 .brand { display: flex; align-items: center; gap: 8px; margin-right: 4px; }
-/* The wordmark's blue lives here; the SVG fills with currentColor. */
-.brand .logo { display: inline-flex; align-items: center; color: #0F2DF7; border-radius: 6px; }
+/* The wordmark SVG fills with currentColor. */
+.brand .logo { display: inline-flex; align-items: center; color: var(--brand); border-radius: 6px; }
 .brand .logo:hover { text-decoration: none; opacity: 0.85; }
 .wordmark { height: 26px; width: auto; display: block; }
 .topbar-break { display: none; }
@@ -563,7 +567,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .onboard-card .onboard-name {
   margin: 0 0 2px;
   font-family: 'Varela Round', ui-rounded, -apple-system, sans-serif;
-  font-size: 30px; color: #2B3BE2; letter-spacing: -0.01em;
+  font-size: 30px; color: var(--brand); letter-spacing: -0.01em;
 }
 .onboard-card h2 { margin: 0 0 10px; font-size: 19px; letter-spacing: -0.01em; }
 .onboard-card p { margin: 0 0 16px; color: var(--ink-2); font-size: 14px; }
@@ -666,8 +670,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 }
 .dayfilter-chips button.on {
   color: #fff;
-  background: var(--accent, #2b3be2);
-  border-color: var(--accent, #2b3be2);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .show-more {
   all: unset;
@@ -678,7 +682,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
   text-align: center;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--accent, #2b3be2);
+  color: var(--accent);
   border: 1px dashed var(--hairline, #e3e5ea);
   border-radius: 10px;
   padding: 7px 0;

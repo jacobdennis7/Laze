@@ -80,7 +80,14 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     layerRef.current = L.layerGroup().addTo(map);
     spotLayerRef.current = L.layerGroup().addTo(map);
     searchLayerRef.current = L.layerGroup().addTo(map);
-    return () => map.remove();
+    return () => {
+      // Leaflet's zoom animation ends on a timer that remove() doesn't cancel;
+      // if the map is torn down mid-zoom (the wordmark's "home" remounts it),
+      // that callback runs against the destroyed map and throws. Its first
+      // line bails when no zoom is in flight, so mark it finished.
+      map._animatingZoom = false;
+      map.remove();
+    };
   }, []);
 
   // ---- itinerary layer ----

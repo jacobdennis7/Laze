@@ -20,13 +20,18 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   `laze_session`, server stores NOTHING), `booking.js` (Calendly availability
   proxy, allowlisted), `_lib/session.js`.
 - Header wordmark: `src/components/Wordmark.jsx` — Jacob's own vector (Nov
-  2026), path data copied verbatim, filled with `currentColor`; its blue
-  (#0F2DF7) is set on `.brand .logo` in styles.css. Note this is brighter
-  than the #2B3BE2 on the icon and link-preview card (not yet reconciled).
+  2026), path data copied verbatim, filled with `currentColor`.
   It is a link that resets the app to its opening state (`goHome` in
-  App.jsx). On phones it stays 18px tall: wider and the date picker wraps
-  to a third header row.
-- `public/` — `icon.svg` (route-L brand mark, royal blue #2B3BE2),
+  App.jsx, which remounts MapView via `key`). On phones it stays 18px tall:
+  wider and the date picker wraps to a third header row.
+- **Brand blue is #0F2DF7 everywhere** (Jacob's call, Nov 2026; it was
+  #2B3BE2). CSS uses `--brand`; it is repeated as a literal in
+  `public/icon.svg`, `public/icon-maskable.svg`, `scripts/og/og.svg` and the
+  static-landing `<h1>` in index.html — change all together, then rerun
+  `bun scripts/og/generate.mjs` to rebuild `og.png` and `icon-180.png`.
+  The logo on Google's sign-in screen is uploaded in GCP Branding and is
+  NOT changed: editing it triggers a branding re-review.
+- `public/` — `icon.svg` (route-L brand mark),
   `privacy.html` (required by Google verification — keep truthful).
 - Personal calendar snapshot: `src/data/events.local.js` — **gitignored AND
   stripped from non-demo builds by the `local-data-guard` vite plugin**.
