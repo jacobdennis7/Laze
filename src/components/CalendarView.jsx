@@ -3,15 +3,9 @@ import { HOOD_COLORS, BANNERS } from '../data/events.js';
 import { eventsForDay, dayLegs } from '../lib/schedule.js';
 import { venueOf, MODE_ICON } from '../lib/geo.js';
 import { calColor } from '../lib/colors.js';
+import { DAY_START, DAY_END, PX_PER_MIN, yFor } from '../lib/calgrid.js';
 import { eachDay, minutesOfDay, fmtTimeShort, fmtDayTiny, fmtDayShort } from '../lib/time.js';
-
-const DAY_START = 6 * 60; // 6 AM
-const DAY_END = 23 * 60; // 11 PM
-const PX_PER_MIN = 44 / 60;
-
-function yFor(min) {
-  return (Math.max(min, DAY_START) - DAY_START) * PX_PER_MIN;
-}
+import GhostLayer from './GhostLayer.jsx';
 
 // Greedy column packing for overlapping events.
 function packColumns(evs) {
@@ -31,7 +25,7 @@ function packColumns(evs) {
 
 const SPANS = [[1, 'Day'], [3, '3 days'], [7, 'Week'], [0, 'Full range']];
 
-export default function CalendarView({ range, mode, onSelect, onTravel }) {
+export default function CalendarView({ range, mode, onSelect, onTravel, ghost }) {
   const allDays = eachDay(range.start, range.end);
   // View span: how many of the range's days show at once. Phones default to
   // 3 days (like the Google Calendar app); desktop shows the whole range.
@@ -110,6 +104,7 @@ export default function CalendarView({ range, mode, onSelect, onTravel }) {
               {hours.map((h) => (
                 <div className="cal-hourline" key={h} style={{ top: yFor(h * 60) }} />
               ))}
+              {ghost && <GhostLayer day={d} ghost={ghost} />}
               {packed.map(({ ev, col, nCols }) => {
                 const s = minutesOfDay(ev.start);
                 let e = minutesOfDay(ev.end);

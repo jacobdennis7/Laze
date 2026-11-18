@@ -12,6 +12,8 @@ import TravelBlockModal from './components/TravelBlockModal.jsx';
 import RangePicker from './components/RangePicker.jsx';
 import MapView from './components/MapView.jsx';
 import Wordmark from './components/Wordmark.jsx';
+import SuggestTray from './components/SuggestTray.jsx';
+import { useGhost } from './lib/useGhost.js';
 import DayPanel from './components/DayPanel.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import ConflictsPanel from './components/ConflictsPanel.jsx';
@@ -35,6 +37,8 @@ export default function App() {
   const pVersion = useSyncExternalStore(subscribePrefs, prefsVersion);
   const [spotSuggest, setSpotSuggest] = useState(null);
   const [travelBlock, setTravelBlock] = useState(null); // { leg, day }
+  // PROTOTYPE: Suggest as a mode. Recomputed after a sync or settings change.
+  const ghost = useGhost(range, `${store.version}.${pVersion}`);
 
   const days = useMemo(() => eachDay(range.start, range.end), [range]);
   // store.version / rVersion are re-computation triggers, not read directly.
@@ -74,6 +78,7 @@ export default function App() {
     setSpotSuggest(null);
     setTravelBlock(null);
     setShowItin(false);
+    ghost.exit();
     setView('map');
     setRange(DEFAULT_RANGE);
     setActiveDay(DEFAULT_RANGE.start);
@@ -232,7 +237,20 @@ export default function App() {
           <span className={`badge${conflicts.length === 0 ? ' zero' : ''}`}>{conflicts.length}</span>
           <span className="btn-label">Conflicts</span>
         </button>
-        <button className="pill-btn primary" onClick={() => { setShowSuggest(true); track('suggest_opened'); }} aria-label="Suggest times">
+        {/* PROTOTYPE: Suggest toggles a mode (times drawn on the calendar/map)
+            instead of opening the pop-up; the pop-up is still reachable from
+            the bar as "Classic". */}
+        <button
+          className={`pill-btn primary${ghost.on ? ' active' : ''}`}
+          onClick={() => {
+            if (ghost.on) { ghost.exit(); return; }
+            ghost.enter();
+            setView('cal');
+            track('suggest_opened', { surface: 'ghost' });
+          }}
+          aria-label="Suggest times"
+          aria-pressed={ghost.on}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.8 2.8M16.2 16.2L19 19M19 5l-2.8 2.8M7.8 16.2L5 19" /></svg>
           <span className="btn-label">Suggest</span>
         </button>
@@ -250,6 +268,7 @@ export default function App() {
                 onSpotSuggest={setSpotSuggest}
                 onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
                 onSelect={setSelectedEvent}
+                ghost={ghost.on ? ghost : null}
               />
               <div className="day-chips" role="tablist" aria-label="Day">
                 {days.map((d, i) => (
@@ -271,7 +290,13 @@ export default function App() {
             />
           </>
         ) : (
-          <CalendarView range={range} mode={mode} onSelect={setSelectedEvent} onTravel={(leg, d) => setTravelBlock({ leg, day: d })} />
+          <CalendarView
+            range={range}
+            mode={mode}
+            onSelect={setSelectedEvent}
+            onTravel={(leg, d) => setTravelBlock({ leg, day: d })}
+            ghost={ghost.on ? ghost : null}
+          />
         )}
         {isEmpty && (
           <div className="onboard">
@@ -300,6 +325,14 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {ghost.on && (
+        <SuggestTray
+          ghost={ghost}
+          view={view}
+          onClassic={() => { ghost.exit(); setShowSuggest(true); }}
+        />
+      )}
 
       {showConflicts && <ConflictsPanel conflicts={conflicts} onClose={() => setShowConflicts(false)} />}
       {showSuggest && <SuggestModal range={range} onClose={() => setShowSuggest(false)} />}

@@ -5,7 +5,9 @@ import { getPlaces } from '../lib/prefs.js';
 // Reusable address field with the same type-ahead as map Search mode:
 // 3+ chars → debounced Google Places suggestions (OSM fallback) → pick one
 // and `onSelect` receives a resolved { name, address, lat, lng, hood }.
-export default function AddressInput({ placeholder, initial = '', onSelect, ariaLabel }) {
+// `dropUp` opens the suggestion list above the field, for inputs docked at
+// the bottom of the screen.
+export default function AddressInput({ placeholder, initial = '', onSelect, ariaLabel, dropUp = false }) {
   const [q, setQ] = useState(initial);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +63,7 @@ export default function AddressInput({ placeholder, initial = '', onSelect, aria
   }
 
   return (
-    <div className="addr-input">
+    <div className={`addr-input${dropUp ? ' drop-up' : ''}`}>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}

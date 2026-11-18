@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { HOOD_COLORS } from '../data/events.js';
-import { fetchNearbySpots, travelMinutes, MODE_LABEL } from '../lib/geo.js';
+import { fetchNearbySpots, travelMinutes, MODE_LABEL, haversineKm, FAR_KM } from '../lib/geo.js';
 import { liveMinutes } from '../lib/routes.js';
 import { loadSettings } from '../lib/store.js';
 import { track } from '../lib/analytics.js';
@@ -43,7 +43,11 @@ function deoverlap(stops) {
   });
 }
 
-export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect }) {
+export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect, ghost }) {
+  // PROTOTYPE (suggest mode): redraw when their location or the picks change.
+  const ghostKey = ghost
+    ? `${ghost.cfg.them ? `${ghost.cfg.them.lat},${ghost.cfg.them.lng}` : ''}|${ghost.picks.join(',')}`
+    : '';
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const spotLayerRef = useRef(null);
@@ -191,9 +195,47 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       if (!leg.intercity && leg.leaveBy == null) chip.on('click', () => travelRef.current && travelRef.current(leg));
     });
 
-    if (pts.length > 1) map.fitBounds(pts, { padding: [56, 56], maxZoom: 15 });
+    // PROTOTYPE (suggest mode): where the other person is, and for each time
+    // picked on this day the detour past them from the meetings on either side.
+    if (ghost && ghost.cfg.them) {
+      const t = ghost.cfg.them;
+      const tm = L.marker([t.lat, t.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="wp-marker them" style="width:30px;height:30px">★</div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        }),
+        zIndexOffset: 300,
+      }).addTo(layer);
+      tm.bindTooltip(`<b>${t.name}</b><span class="sub">Where they are</span>`, { className: 'wp-tip' });
+      // only zoom to include them when they're in the same city as the day
+      if (!pts.length || pts.some(([lat, lng]) => haversineKm({ lat, lng }, t) <= FAR_KM)) pts.push([t.lat, t.lng]);
+
+      ghost.picked.filter((s) => s.day === day).forEach((s, i) => {
+        const path = [s.w.anchorBefore, t, s.w.anchorAfter].filter(Boolean).map((p) => [p.lat, p.lng]);
+        if (path.length > 1) {
+          L.polyline(path, { color: '#2e7d54', weight: 3, dashArray: '2 7', opacity: 0.95 }).addTo(layer);
+        }
+        L.marker([t.lat, t.lng], {
+          icon: L.divIcon({
+            className: 'leg-chip-label ghost',
+            html: `<span style="transform: translate(18px, ${-14 + i * 24}px)">✓ ${s.short}${s.detourMin > 5 ? ` · +${s.detourMin} min` : ' · on your way'}</span>`,
+            iconSize: [0, 0],
+          }),
+          zIndexOffset: 310,
+          interactive: false,
+        }).addTo(layer);
+      });
+    }
+
+    // In suggest mode the picked-time labels sit to the right of their star,
+    // so leave room for them on that side.
+    const labelRoom = ghost && ghost.cfg.them && ghost.picked.some((s) => s.day === day) ? 210 : 56;
+    if (pts.length > 1) map.fitBounds(pts, { paddingTopLeft: [56, 56], paddingBottomRight: [labelRoom, 56], maxZoom: 15 });
     else if (pts.length === 1) map.setView(pts[0], 13);
-  }, [day, mode, dataVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, mode, dataVersion, ghostKey]);
 
   // ---- spots layer: manual "search this area" model ----
   function renderSpots(spots) {
