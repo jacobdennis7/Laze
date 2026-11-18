@@ -1,57 +1,52 @@
 import React, { useState } from 'react';
 import { PX_PER_MIN, yFor } from '../lib/calgrid.js';
+import { MAX_PICKS } from '../lib/useGhost.js';
 
-// PROTOTYPE — suggested meeting times drawn over one day column of the
-// calendar. Three looks are being compared (ghost.cfg.look):
-//   windows — each open stretch is one soft block; move over it and a
-//             meeting-sized outline follows, click to drop a time there
-//   slots   — every viable start is its own row, like a booking page laid
-//             over your own calendar
-//   top     — only the best few times, numbered, nothing else marked
-// Picked times look the same in all three.
+// PROTOTYPE — suggested meeting times drawn over one day column.
+//   free time   a quiet green wash; a meeting-sized outline follows the
+//               pointer and a click drops a time exactly there
+//   suggested   the engine's best few times, dashed — one click to take one
+//   picked      solid; removed only via its ✕
+// A time can never be dropped on top of another, and nothing is ever removed
+// except by its ✕ (here or on its chip in the bar).
 
-const spanStyle = (startMin, endMin) => ({
+const block = (startMin, endMin) => ({
   top: yFor(startMin),
   height: Math.max((endMin - startMin) * PX_PER_MIN - 2, 14),
 });
 
-function Detour({ s }) {
-  return s.detourMin > 5 ? <span className="g-detour"> · +{s.detourMin}m</span> : null;
-}
+const Detour = ({ s }) => (s.detourMin > 5 ? <span className="g-detour"> · +{s.detourMin}m</span> : null);
 
-// One open stretch. The outline snaps to the nearest viable start.
-function GhostWindow({ win, slots, ghost }) {
+function FreeWindow({ win, slots, ghost }) {
   const [hoverId, setHoverId] = useState(null);
-  if (!slots.length) return null;
+  // starts that are still placeable here
+  const open = slots.filter((s) => !ghost.picks.includes(s.id) && !ghost.overlapsPick(s));
 
+  // The time under the pointer is when the meeting would start (as in any
+  // calendar), snapped to the nearest start that actually fits.
   function slotAt(e) {
+    if (!open.length) return null;
     const rect = e.currentTarget.getBoundingClientRect();
-    // centre the meeting on the pointer
-    const min = win.startMin + (e.clientY - rect.top) / PX_PER_MIN - ghost.cfg.duration / 2;
-    return slots.reduce((best, s) => (Math.abs(s.startMin - min) < Math.abs(best.startMin - min) ? s : best));
+    const min = win.startMin + (e.clientY - rect.top) / PX_PER_MIN - 8;
+    const s = open.reduce((best, x) => (Math.abs(x.startMin - min) < Math.abs(best.startMin - min) ? x : best));
+    return Math.abs(s.startMin - min) <= 45 ? s : null;
   }
-  const hover = slots.find((s) => s.id === hoverId && !ghost.picks.includes(s.id));
+  const hover = open.find((s) => s.id === hoverId);
 
   return (
     <div
-      className="g-window"
-      style={spanStyle(win.startMin, win.endMin)}
-      onMouseMove={(e) => setHoverId(slotAt(e).id)}
+      className="g-free"
+      style={block(win.startMin, win.endMin)}
+      onMouseMove={(e) => setHoverId(slotAt(e)?.id ?? null)}
       onMouseLeave={() => setHoverId(null)}
-      onClick={(e) => ghost.toggle(slotAt(e).id)}
-      role="button"
-      aria-label={`Open ${win.label}. Click to suggest a time here.`}
+      onClick={(e) => { const s = slotAt(e); if (s) ghost.toggle(s.id); }}
     >
-      <span className="g-window-label">Open {win.label}</span>
       {hover && (
         <span
-          className="g-outline"
-          style={{
-            top: (hover.startMin - win.startMin) * PX_PER_MIN,
-            height: ghost.cfg.duration * PX_PER_MIN - 2,
-          }}
+          className={`g-outline${ghost.atLimit ? ' full' : ''}`}
+          style={{ top: (hover.startMin - win.startMin) * PX_PER_MIN, height: ghost.cfg.duration * PX_PER_MIN - 2 }}
         >
-          ＋ {hover.short}<Detour s={hover} />
+          {ghost.atLimit ? `${MAX_PICKS} of ${MAX_PICKS} picked` : <>＋ {hover.short}<Detour s={hover} /></>}
         </span>
       )}
     </div>
@@ -59,61 +54,36 @@ function GhostWindow({ win, slots, ghost }) {
 }
 
 export default function GhostLayer({ day, ghost }) {
-  const { look } = ghost.cfg;
   const daySlots = ghost.slots.filter((s) => s.day === day);
-  const picked = ghost.picked.filter((s) => s.day === day);
-  const isPicked = (s) => ghost.picks.includes(s.id);
 
   return (
     <>
-      {look === 'windows' &&
-        ghost.windows
-          .filter((w) => w.day === day)
-          .map((win) => (
-            <GhostWindow key={win.w.s} win={win} slots={daySlots.filter((s) => s.w === win.w)} ghost={ghost} />
-          ))}
-
-      {look === 'slots' &&
-        daySlots.filter((s) => !isPicked(s)).map((s) => (
-          <button
-            key={s.id}
-            className="g-cell"
-            style={{ top: yFor(s.startMin), height: 30 * PX_PER_MIN - 2 }}
-            onClick={() => ghost.toggle(s.id)}
-            title={`Suggest ${s.label}`}
-          >
-            <span className="g-cell-time">{s.short.split('–')[0]}</span>
-            {/* the full meeting length, shown while pointing at a start */}
-            <span className="g-cell-span" style={{ height: ghost.cfg.duration * PX_PER_MIN - 2 }}>
-              ＋ {s.short}<Detour s={s} />
-            </span>
-          </button>
+      {ghost.windows
+        .filter((w) => w.day === day)
+        .map((win) => (
+          <FreeWindow key={win.w.s} win={win} slots={daySlots.filter((s) => s.w === win.w)} ghost={ghost} />
         ))}
 
-      {look === 'top' &&
-        ghost.top.filter((s) => s.day === day && !isPicked(s)).map((s) => (
+      {!ghost.atLimit &&
+        ghost.suggested.filter((s) => s.day === day).map((s) => (
           <button
             key={s.id}
-            className="g-top"
-            style={spanStyle(s.startMin, s.endMin)}
+            className="g-suggested"
+            style={block(s.startMin, s.endMin)}
             onClick={() => ghost.toggle(s.id)}
-            title={`Suggest ${s.label}`}
+            title={`Suggested: ${s.label} — click to add`}
           >
-            <span className="g-rank">{ghost.top.indexOf(s) + 1}</span>
             {s.short}<Detour s={s} />
           </button>
         ))}
 
-      {picked.map((s) => (
-        <button
-          key={`p${s.id}`}
-          className="g-picked"
-          style={spanStyle(s.startMin, s.endMin)}
-          onClick={() => ghost.toggle(s.id)}
-          title={`${s.label} — click to remove`}
-        >
-          ✓ {s.short}<Detour s={s} />
-        </button>
+      {/* Removing takes a deliberate click on the ✕: a stray click on the block
+          itself (easy to do while placing a neighbour) must not delete it. */}
+      {ghost.picked.filter((s) => s.day === day).map((s) => (
+        <div key={`p${s.id}`} className="g-picked" style={block(s.startMin, s.endMin)} title={s.label}>
+          <span className="g-picked-label">✓ {s.short}<Detour s={s} /></span>
+          <button className="g-x" onClick={() => ghost.toggle(s.id)} aria-label={`Remove ${s.label}`} title="Remove this time">✕</button>
+        </div>
       ))}
     </>
   );

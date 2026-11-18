@@ -61,6 +61,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
   travelRef.current = onTravel;
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
+  const fitRef = useRef(null); // the pending "frame this day" call, if one is waiting on a zoom
   const genRef = useRef(0); // invalidates in-flight searches on toggle-off / re-search
   const spotCacheRef = useRef(new Map());
   const searchRef = useRef(null);
@@ -215,7 +216,9 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       ghost.picked.filter((s) => s.day === day).forEach((s, i) => {
         const path = [s.w.anchorBefore, t, s.w.anchorAfter].filter(Boolean).map((p) => [p.lat, p.lng]);
         if (path.length > 1) {
-          L.polyline(path, { color: '#2e7d54', weight: 3, dashArray: '2 7', opacity: 0.95 }).addTo(layer);
+          // white casing under the green so the detour reads on any basemap
+          L.polyline(path, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(layer);
+          L.polyline(path, { color: '#2e7d54', weight: 3.5, dashArray: '7 6', opacity: 1 }).addTo(layer);
         }
         L.marker([t.lat, t.lng], {
           icon: L.divIcon({
@@ -232,8 +235,23 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     // In suggest mode the picked-time labels sit to the right of their star,
     // so leave room for them on that side.
     const labelRoom = ghost && ghost.cfg.them && ghost.picked.some((s) => s.day === day) ? 210 : 56;
-    if (pts.length > 1) map.fitBounds(pts, { paddingTopLeft: [56, 56], paddingBottomRight: [labelRoom, 56], maxZoom: 15 });
-    else if (pts.length === 1) map.setView(pts[0], 13);
+    // Framing a day is done without animation: an animated zoom is queued on
+    // the next frame, and a second request arriving before it runs (switching
+    // day right after the map opens) could lose to it and leave the map
+    // framed on the previous day. An instant jump is always the latest one.
+    const fit = () => {
+      if (pts.length > 1) {
+        map.fitBounds(pts, { paddingTopLeft: [56, 56], paddingBottomRight: [labelRoom, 56], maxZoom: 15, animate: false });
+      } else if (pts.length === 1) {
+        map.setView(pts[0], 13, { animate: false });
+      }
+    };
+    // Leaflet also ignores any zoom requested while the user's own zoom is
+    // still animating; in that case wait for it to finish.
+    if (fitRef.current) map.off('zoomend', fitRef.current); // drop a superseded pending fit
+    fitRef.current = fit;
+    if (map._animatingZoom) map.once('zoomend', fit);
+    else fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, mode, dataVersion, ghostKey]);
 

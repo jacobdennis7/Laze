@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { HOOD_COLORS, BANNERS } from '../data/events.js';
 import { eventsForDay, dayLegs } from '../lib/schedule.js';
 import { venueOf, MODE_ICON } from '../lib/geo.js';
@@ -48,15 +48,29 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
     try { localStorage.setItem('laze-cal-span', String(v)); } catch { /* ignore */ }
   }
 
+  // PROTOTYPE (suggest mode): on entering, bring the first open time into view
+  // rather than leaving the user looking at empty early-morning rows.
+  const wrapRef = useRef(null);
+  const suggesting = !!ghost;
+  useEffect(() => {
+    if (!suggesting || !wrapRef.current || !ghost.windows.length) return;
+    const first = Math.min(...ghost.windows.map((w) => w.startMin));
+    wrapRef.current.scrollTop = Math.max(0, yFor(first) - 28);
+    // only when the mode turns on — not on every pick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggesting]);
+
   const height = (DAY_END - DAY_START) * PX_PER_MIN;
   const hours = [];
   for (let h = Math.ceil(DAY_START / 60); h <= Math.floor(DAY_END / 60); h++) hours.push(h);
-  const gridCols = `56px repeat(${days.length}, minmax(120px, 1fr))`;
+  // 100px keeps a 7-day week on screen at tablet/half-window widths; at 120px
+  // the last day was pushed off the right edge behind a scrollbar.
+  const gridCols = `56px repeat(${days.length}, minmax(100px, 1fr))`;
 
   const banners = BANNERS.filter((b) => b.from <= range.end && b.to >= range.start);
 
   return (
-    <div className="cal-wrap">
+    <div ref={wrapRef} className={`cal-wrap${ghost ? ' suggesting' : ''}`}>
       <div className="cal-toolbar">
         <button className="cal-nav" disabled={off === 0} onClick={() => setOffset(Math.max(0, off - n))} aria-label="Earlier days">‹</button>
         <select value={span} onChange={(e) => pickSpan(+e.target.value)} aria-label="Calendar view span">
@@ -118,7 +132,7 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
                 return (
                   <button
                     key={ev.id}
-                    className={`cal-ev${ev.virtual ? ' virtual' : ''}${ev.tbd && !ev.virtual && !ev.skipped ? ' tbd-ev' : ''}${ev.homeCity || ev.skipped ? ' ny-ev' : ''}`}
+                    className={`cal-ev${ev.virtual ? ' virtual' : ''}${ev.tbd && !ev.virtual && !ev.skipped ? ' tbd-ev' : ''}${ev.homeCity || ev.skipped ? ' ny-ev' : ''}${ev.kind === 'hold' ? ' hold-ev' : ''}`}
                     style={{
                       top: yFor(s),
                       height: Math.max((e - s) * PX_PER_MIN - 2, 17),
