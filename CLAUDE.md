@@ -138,20 +138,21 @@ the page context with the bundle's key; referrer restrictions pass there).
 
 ## Backlog
 
-- **Ghost mode is live but switched off** (v0.10.0, Nov 2026), awaiting
-  Jacob's verdict on his own phone and calendar. `src/lib/flags.js` `GHOST`:
-  per-browser, `?ghost=1` turns it on, `?ghost=0` off, on by default in dev.
-  With it on, Suggest becomes a mode (open time drawn on the calendar, picks
-  feed the reply — `useGhost.js`, `GhostLayer`, `SuggestTray`), and "Create a
-  meeting here" (search or a spot) gets "See in calendar" → `MeetHereTray`:
-  one time is chosen, published as a *tentative* event (`setTentative` in
-  schedule.js) so the map/itinerary show it as a proposed stop in that day's
-  route. Tentative events never count as busy time or raise conflicts. The
-  Calendar toggle carries a searched place along. With it off, users get the
-  SuggestModal pop-up as before. To launch: make `GHOST` true. Open
-  questions: should holds block suggestions (they count as free today);
-  booking-link availability isn't in the mode yet (only in "List view");
-  travel-aware green and per-day detour ranking were planned, not built.
+- **Ghost mode is on for everyone** (v0.11.0, Nov 2026; it shipped switched
+  off in v0.10.0 until Jacob had judged it on his own phone). `GHOST` in
+  `src/lib/flags.js` is true unless that browser opened `?ghost=0` (escape
+  hatch back to the SuggestModal pop-up; `?ghost=1` undoes it). Suggest is a
+  mode: open time is drawn on the calendar and picks feed the reply
+  (`useGhost.js`, `GhostLayer`, `SuggestTray`; the old pop-up is its "List
+  view" link). "Create a meeting here" (search or a spot) opens the day's
+  slot list with "See in calendar" → `MeetHereTray`: one time is chosen and
+  published as a *tentative* event (`setTentative` in schedule.js), so the
+  map/itinerary show it as a proposed stop in that day's route. Tentative
+  events never count as busy time or raise conflicts. The Calendar toggle
+  carries a searched place along. Open questions: should holds block
+  suggestions (they count as free today); booking-link availability isn't
+  in the mode yet (only in "List view"); travel-aware green and per-day
+  detour ranking were planned, not built.
 - The map stays mounted behind the calendar (`hidden` + `visible` prop) so a
   searched place, spots and zoom survive view switches — for everyone, not
   just ghost mode. A hidden Leaflet map needs `invalidateSize` and a deferred

@@ -1,10 +1,10 @@
-// Features switched on per browser, not for everyone.
+// Per-browser feature switches.
 //
 // GHOST — Suggest and "Create a meeting here" drawn on the calendar and map
-// (useGhost.js, SuggestTray, MeetHereTray). Off in production until Jacob
-// has judged it on his own phone and calendar: opening the site once with
-// ?ghost=1 turns it on for that browser, ?ghost=0 turns it back off. On by
-// default in local dev. To launch it for everyone, make this `true`.
+// (useGhost.js, SuggestTray, MeetHereTray). On for everyone since v0.11.0.
+// Opening the site once with ?ghost=0 switches that one browser back to the
+// old Suggest pop-up (useful for comparing, or as an escape hatch);
+// ?ghost=1 switches it on again.
 const KEY = 'laze-ghost';
 
 function readGhost() {
@@ -14,9 +14,7 @@ function readGhost() {
     if (q === '1' || q === '0') localStorage.setItem(KEY, q);
     stored = localStorage.getItem(KEY);
   } catch { /* private mode: fall through to the default */ }
-  if (stored === '1') return true;
-  if (stored === '0') return false;
-  return !!import.meta.env.DEV;
+  return stored !== '0';
 }
 
 export const GHOST = readGhost();
