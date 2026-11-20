@@ -61,7 +61,7 @@ export default function MeetHereTray({ ghost, view, range, onCalendar }) {
         {created ? (
           <span className="g-status-text">Opened in Google Calendar — save it there, then Sync to see it here.</span>
         ) : (
-          <span className="g-status-text">
+          <span className="g-status-text g-wide">
             {view === 'map' ? 'Shown in this day’s route.' : 'Click another green time to move it.'}
           </span>
         )}
@@ -82,9 +82,12 @@ export default function MeetHereTray({ ghost, view, range, onCalendar }) {
     status = <span className="g-status-text">No open time in this range for a {cfg.duration}-minute meeting.</span>;
   } else {
     status = (
-      <span className="g-status-text">
-        Green is when you’re {ghost.rule}. Click a time to choose it — the dashed ones take you least out of your way.
-      </span>
+      <>
+        <span className="g-status-text g-wide">
+          Green is when you’re {ghost.rule}. Click a time to choose it — the dashed ones take you least out of your way.
+        </span>
+        <span className="g-status-text g-narrow">Tap a green time — dashed is least out of your way.</span>
+      </>
     );
   }
 
@@ -99,7 +102,7 @@ export default function MeetHereTray({ ghost, view, range, onCalendar }) {
           ))}
         </div>
         <div className="g-tray-actions">
-          <button className="g-link" onClick={ghost.toSuggest} title="Keep this place, but pick several times and send them as a reply">
+          <button className="g-link g-wide" onClick={ghost.toSuggest} title="Keep this place, but pick several times and send them as a reply">
             Offer several times instead
           </button>
           {createUrl ? (
@@ -110,10 +113,10 @@ export default function MeetHereTray({ ghost, view, range, onCalendar }) {
               rel="noreferrer"
               onClick={() => { setCreated(true); track('spot_event_created', { surface: 'ghost', custom_time: !!pick.custom }); }}
             >
-              Create in Google Calendar ↗
+              <span className="g-wide">Create in Google Calendar ↗</span><span className="g-narrow">Create ↗</span>
             </a>
           ) : (
-            <span className="pill-btn primary" aria-disabled="true" title="Choose a time first">Create in Google Calendar ↗</span>
+            <span className="pill-btn primary" aria-disabled="true" title="Choose a time first"><span className="g-wide">Create in Google Calendar ↗</span><span className="g-narrow">Create ↗</span></span>
           )}
           <button className="x-btn" onClick={ghost.exit} aria-label="Close" title="Close">✕</button>
         </div>
@@ -135,6 +138,7 @@ export default function MeetHereTray({ ghost, view, range, onCalendar }) {
             Other time…
           </button>
         )}
+        {!otherOpen && <button className="g-link g-narrow" onClick={ghost.toSuggest}>Offer several times</button>}
       </div>
     </section>
   );

@@ -467,7 +467,8 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
           onClose={toggleSearch}
         />
       )}
-      {searchOn && picked && (
+      {/* once it is a stop in the day's route, the card would only cover the route */}
+      {searchOn && picked && !proposedHere && (
         <div className="search-card">
           <div className="sc-name">{picked.name}</div>
           <div className="sc-sub">{picked.address}</div>

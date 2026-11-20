@@ -829,3 +829,27 @@ a.pill-btn { text-decoration: none; }
   .g-tray-panel { grid-template-columns: 1fr; }
   .g-tray-addr { max-width: none; }
 }
+/* phone: the bar must leave the calendar most of the screen — two tight rows
+   (place + close, then length + create) and a one-line status */
+.g-narrow { display: none; }
+@media (max-width: 560px) {
+  .g-wide { display: none !important; }
+  .g-narrow { display: inline; }
+  .g-tray-actions { display: contents; }
+  .g-tray-bar { gap: 6px 8px; }
+  .g-tray-bar .g-place { flex: 0 1 auto; min-width: 0; max-width: none; }
+  .g-tray-bar .x-btn { order: 1; margin-left: auto; }
+  .g-tray-bar::after { content: ''; flex-basis: 100%; order: 2; }
+  .g-tray-bar .g-seg, .g-tray-bar .g-tray-addr { order: 3; }
+  .g-tray-bar .g-seg button { padding: 6px 9px; }
+  .g-tray-bar .pill-btn { order: 4; white-space: nowrap; padding: 7px 14px; }
+  .g-tray-bar .pill-btn.primary { margin-left: auto; }
+  .g-tray-bar .g-link { order: 4; }
+  /* Suggest: length fits beside the title, the address shares a row with the buttons */
+  .g-tray.suggest .g-seg { order: 0; }
+  .g-tray.suggest .g-tray-addr { flex: 1 1 110px; min-width: 0; }
+  .g-tray.suggest .pill-btn { padding: 7px 11px; }
+  .g-tray.suggest .pill-btn.primary { margin-left: 0; }
+  .g-tray-status { gap: 4px 10px; min-height: 0; }
+  .g-status-text, .g-chosen { font-size: 12px; }
+}

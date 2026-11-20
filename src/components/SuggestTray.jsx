@@ -52,24 +52,30 @@ export default function SuggestTray({ ghost, view, onClassic }) {
     );
   } else if (view === 'map') {
     status = (
-      <span className="g-status-text">
-        Times are picked in Calendar view.{' '}
-        {cfg.them ? 'Picked times will show their detour here.' : 'Add where they are to see each time’s detour on this map.'}
-      </span>
+      <>
+        <span className="g-status-text g-wide">
+          Times are picked in Calendar view.{' '}
+          {cfg.them ? 'Picked times will show their detour here.' : 'Add where they are to see each time’s detour on this map.'}
+        </span>
+        <span className="g-status-text g-narrow">Pick times in Calendar view.</span>
+      </>
     );
   } else if (!ghost.slots.length) {
     status = <span className="g-status-text">No open time in this range for a {cfg.duration}-minute meeting.</span>;
   } else {
     status = (
-      <span className="g-status-text">
-        Green is when you’re {ghost.rule}. Click it to add as many times as you like — until you do, the
-        reply offers the {suggested.length} dashed suggestion{suggested.length === 1 ? '' : 's'}.
-      </span>
+      <>
+        <span className="g-status-text g-wide">
+          Green is when you’re {ghost.rule}. Click it to add as many times as you like — until you do, the
+          reply offers the {suggested.length} dashed suggestion{suggested.length === 1 ? '' : 's'}.
+        </span>
+        <span className="g-status-text g-narrow">Tap green to add times — the reply offers the dashed ones until you do.</span>
+      </>
     );
   }
 
   return (
-    <section className="g-tray" aria-label="Suggest times">
+    <section className="g-tray suggest" aria-label="Suggest times">
       {open && (
         <div className="g-tray-panel">
           <div className="field">
@@ -123,14 +129,17 @@ export default function SuggestTray({ ghost, view, onClassic }) {
           )}
         </div>
         <div className="g-tray-actions">
-          <button className="g-link" onClick={onClassic} title="The same times as a list, where you can also paste a booking link">List view</button>
+          <button className="g-link g-wide" onClick={onClassic} title="The same times as a list, where you can also paste a booking link">List view</button>
           <button className="pill-btn" onClick={() => setOpen(!open)}>{open ? 'Hide reply' : 'Reply'}</button>
           <button className="pill-btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy reply'}</button>
           <button className="x-btn" onClick={ghost.exit} aria-label="Leave suggest mode" title="Leave suggest mode">✕</button>
         </div>
       </div>
 
-      <div className="g-tray-status" aria-live="polite">{status}</div>
+      <div className="g-tray-status" aria-live="polite">
+        {status}
+        <button className="g-link g-narrow" onClick={onClassic}>List view</button>
+      </div>
     </section>
   );
 }
