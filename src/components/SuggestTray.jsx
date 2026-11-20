@@ -123,7 +123,7 @@ export default function SuggestTray({ ghost, view, onClassic }) {
           )}
         </div>
         <div className="g-tray-actions">
-          <button className="g-link" onClick={onClassic} title="Open the current pop-up version to compare">Classic</button>
+          <button className="g-link" onClick={onClassic} title="The same times as a list, where you can also paste a booking link">List view</button>
           <button className="pill-btn" onClick={() => setOpen(!open)}>{open ? 'Hide reply' : 'Reply'}</button>
           <button className="pill-btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy reply'}</button>
           <button className="x-btn" onClick={ghost.exit} aria-label="Leave suggest mode" title="Leave suggest mode">✕</button>

@@ -27,15 +27,25 @@ function withOverride(e) {
 // demo home-city phantoms and occurrences marked as skipped.
 const inactive = (e) => e.homeCity || e.skipped;
 
+// A meeting the user is in the middle of scheduling ("Meet here": a place and
+// a chosen time, not on the calendar yet). It is laid over the real events so
+// the route, map and itinerary show how it would fit — flagged `tentative`
+// so anything that must only see real commitments can leave it out. The
+// free-time search always does, or a pick would erase its own opening.
+let tentative = [];
+export function setTentative(list) {
+  tentative = list;
+}
+
 export function eventsForRange(start, end) {
-  return getEvents()
+  return [...getEvents(), ...tentative]
     .filter((e) => e.day >= start && e.day <= end && !e.hidden)
     .map(withOverride)
     .sort((a, b) => toEpoch(a.start) - toEpoch(b.start));
 }
 
 export function eventsForDay(day) {
-  return getEvents()
+  return [...getEvents(), ...tentative]
     .filter((e) => e.day === day && !e.hidden)
     .map(withOverride)
     .sort((a, b) => toEpoch(a.start) - toEpoch(b.start));
@@ -164,7 +174,7 @@ export function findConflicts(start, end, mode = 'drive') {
 
   for (const day of days) {
     // A skipped occurrence raises nothing: the user already dealt with it.
-    const all = eventsForDay(day).filter((e) => !e.skipped);
+    const all = eventsForDay(day).filter((e) => !e.skipped && !e.tentative);
     const evs = all.filter((e) => e.kind !== 'flight');
     const flights = all.filter((e) => e.kind === 'flight');
 
@@ -230,6 +240,7 @@ export function findConflicts(start, end, mode = 'drive') {
     // 3. Tight transitions
     for (const leg of dayLegs(day, mode)) {
       if (leg.overlap) continue;
+      if (leg.from.tentative || leg.to.tentative) continue; // shown on the route, not counted
       if (leg.intercity) {
         // Only worth raising when both can't be attended in person.
         if (leg.tight) {
@@ -315,7 +326,7 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
   const bufMs = (bufferMin ?? settings.bufferMin ?? 0) * 60000;
   const out = [];
   for (const day of eachDay(start, end)) {
-    const evs = eventsForDay(day).filter((e) => !inactive(e) && e.kind !== 'hold');
+    const evs = eventsForDay(day).filter((e) => !inactive(e) && !e.tentative && e.kind !== 'hold');
     const busy = evs
       .map((e) => {
         // A flight blocks ~2h10m before wheels-up (airport + ride) and ~35m after landing (deplane, bags, car).

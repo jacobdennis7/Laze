@@ -3,12 +3,15 @@ import { freeWindows, eventsForDay } from '../lib/schedule.js';
 import { rankSlots, fmtSlotTime } from '../lib/suggest.js';
 import { gcalTemplate } from '../lib/geo.js';
 import { track } from '../lib/analytics.js';
+import { placeLabel } from '../lib/useGhost.js';
 import { fmtDayLong, toEpoch } from '../lib/time.js';
 
 const TYPE_TITLE = { cafe: 'Coffee', restaurant: 'Lunch', bar: 'Drinks' };
 const DURATIONS = [30, 45, 60, 90];
 
-export default function SpotSuggestModal({ spot, day, onClose }) {
+// `onSeeCalendar`: leave the list for the calendar, with this place carried
+// along, to weigh it against the whole week before choosing a time.
+export default function SpotSuggestModal({ spot, day, onClose, onSeeCalendar }) {
   const duration = spot.type === 'cafe' ? 45 : 60;
   const windows = useMemo(() => freeWindows(day, day, { minMinutes: duration }), [day, duration]);
   const [customTime, setCustomTime] = useState('10:00');
@@ -72,7 +75,12 @@ export default function SpotSuggestModal({ spot, day, onClose }) {
       <div className="modal">
         <div className="modal-card" style={{ width: 'min(430px, 100%)' }} role="dialog" aria-label={`Suggest a time at ${spot.name}`}>
           <div className="modal-head">
-            <h2>{spot.name}</h2>
+            <h2>{placeLabel(spot)}</h2>
+            {onSeeCalendar && (
+              <button className="pill-btn head-action" onClick={onSeeCalendar} title="See this place against your whole week and choose a time there">
+                See in calendar
+              </button>
+            )}
             <button className="x-btn" onClick={onClose} aria-label="Close">✕</button>
           </div>
           <div className="modal-col" style={{ paddingTop: 12 }}>

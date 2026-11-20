@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { gcalTemplate } from '../lib/geo.js';
 import { placeEventTitle } from '../lib/suggest.js';
+import { placeLabel as labelFor } from '../lib/useGhost.js';
 import { eachDay, fmtDayShort } from '../lib/time.js';
 import { track } from '../lib/analytics.js';
 
@@ -11,7 +12,7 @@ import { track } from '../lib/analytics.js';
 
 const DUR = [30, 45, 60, 90];
 
-export default function MeetHereTray({ ghost, view, range, onClassic }) {
+export default function MeetHereTray({ ghost, view, range, onCalendar }) {
   const { cfg, picked } = ghost;
   const place = cfg.them;
   const pick = picked[0] || null;
@@ -23,11 +24,7 @@ export default function MeetHereTray({ ghost, view, range, onClassic }) {
   const [created, setCreated] = useState(false);
   useEffect(() => setCreated(false), [pick?.id, pick?.ms, cfg.duration]);
 
-  // A searched address can come back named by its house number alone; show
-  // and title it by the street instead.
-  const placeLabel = /^\d+[a-z]?$/i.test(place.name) && place.address
-    ? place.address.split(',').slice(0, 2).map((part) => part.trim()).join(' ')
-    : place.name;
+  const placeLabel = labelFor(place);
   // "Name, address" unless the address already starts with the name.
   const location = !place.address || place.address === place.name
     ? place.name
@@ -65,14 +62,22 @@ export default function MeetHereTray({ ghost, view, range, onClassic }) {
           <span className="g-status-text">Opened in Google Calendar — save it there, then Sync to see it here.</span>
         ) : (
           <span className="g-status-text">
-            {view === 'map' ? 'Change it in Calendar view.' : 'Click another green time to move it.'}
+            {view === 'map' ? 'Shown in this day’s route.' : 'Click another green time to move it.'}
           </span>
+        )}
+        {!created && view === 'map' && (
+          <button className="g-link" onClick={onCalendar}>Change in calendar</button>
         )}
         <button className="g-link" onClick={ghost.clearPicks}>Clear</button>
       </>
     );
   } else if (view === 'map') {
-    status = <span className="g-status-text">The star is the meeting place. Choose the time in Calendar view.</span>;
+    status = (
+      <>
+        <span className="g-status-text">No time chosen yet.</span>
+        <button className="g-link" onClick={onCalendar}>See it in your calendar to choose one</button>
+      </>
+    );
   } else if (!ghost.slots.length) {
     status = <span className="g-status-text">No open time in this range for a {cfg.duration}-minute meeting.</span>;
   } else {
@@ -97,7 +102,6 @@ export default function MeetHereTray({ ghost, view, range, onClassic }) {
           <button className="g-link" onClick={ghost.toSuggest} title="Keep this place, but pick several times and send them as a reply">
             Offer several times instead
           </button>
-          <button className="g-link" onClick={onClassic} title="Open the current pop-up version to compare">Classic</button>
           {createUrl ? (
             <a
               className="pill-btn primary"

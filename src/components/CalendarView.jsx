@@ -110,7 +110,8 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
           ))}
         </div>
         {days.map((d) => {
-          const evs = eventsForDay(d).filter((e) => e.kind !== 'flight' || true);
+          // a proposed meeting is drawn by the suggest layer, not as an event tile
+          const evs = eventsForDay(d).filter((e) => !e.tentative);
           const packed = packColumns(evs);
           const legs = dayLegs(d, mode);
           return (

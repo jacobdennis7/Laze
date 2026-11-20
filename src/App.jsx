@@ -40,6 +40,22 @@ export default function App() {
   const [travelBlock, setTravelBlock] = useState(null); // { leg, day }
   // PROTOTYPE: Suggest as a mode. Recomputed after a sync or settings change.
   const ghost = useGhost(range, `${store.version}.${pVersion}`);
+  // The place currently selected in map search, reported by the map.
+  const [mapPlace, setMapPlace] = useState(null);
+
+  // Meet here: once a time is chosen, the map and itinerary follow it to that
+  // day, so going back to the map shows the meeting in that day's route.
+  const chosenDay = ghost.on && ghost.cfg.here && ghost.picked[0] ? ghost.picked[0].day : null;
+  useEffect(() => {
+    if (chosenDay) setActiveDay(chosenDay);
+  }, [chosenDay]);
+
+  // "See in calendar": carry a place into the calendar to weigh it against the week.
+  function seeInCalendar(place) {
+    ghost.enterHere(place);
+    setView('cal');
+    track('spot_suggest_opened', { surface: 'ghost', source: place.type === 'search' ? 'search' : 'spot' });
+  }
 
   const days = useMemo(() => eachDay(range.start, range.end), [range]);
   // store.version / rVersion are re-computation triggers, not read directly.
@@ -216,7 +232,13 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6" /><line x1="8" y1="3" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="21" /></svg>
             <span className="btn-label">Map</span>
           </button>
-          <button className={view === 'cal' ? 'on' : ''} onClick={() => { setView('cal'); track('view_toggled', { view: 'cal' }); }} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
+          <button className={view === 'cal' ? 'on' : ''} onClick={() => {
+              // With an address selected in map search, switching to the calendar
+              // means "how would this fit?" — so bring the place along.
+              if (mapPlace && !ghost.on) ghost.enterHere({ ...mapPlace, type: 'search' });
+              setView('cal');
+              track('view_toggled', { view: 'cal' });
+            }} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="9" y1="10" x2="9" y2="22" /><line x1="15" y1="10" x2="15" y2="22" /></svg>
             <span className="btn-label">Calendar</span>
           </button>
@@ -258,21 +280,19 @@ export default function App() {
       </header>
 
       <main className="main">
-        {view === 'map' ? (
-          <>
-            <div className="map-pane">
+        {/* The map is kept alive (hidden) behind the calendar: a searched place,
+            spots and the zoom all survive switching views and back. */}
+        <div className="map-pane" hidden={view !== 'map'}>
               <MapView
                 key={homeKey}
+                visible={view === 'map'}
                 day={activeDay}
                 mode={mode}
                 dataVersion={`${store.version}.${rVersion}.${pVersion}`}
-                // PROTOTYPE: "Create a meeting here" (map search or a spot)
-                // opens the calendar with the place set, not the pop-up.
-                onSpotSuggest={(place) => {
-                  ghost.enterHere(place);
-                  setView('cal');
-                  track('spot_suggest_opened', { surface: 'ghost', source: place.type === 'search' ? 'search' : 'spot' });
-                }}
+                // "Create a meeting here" (map search or a spot) opens the
+                // day's open times as a list, staying on the map.
+                onSpotSuggest={setSpotSuggest}
+                onPlaceFocus={setMapPlace}
                 onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
                 onSelect={setSelectedEvent}
                 ghost={ghost.on ? ghost : null}
@@ -287,16 +307,17 @@ export default function App() {
               <button className="itin-fab pill-btn" onClick={() => setShowItin(!showItin)}>
                 {showItin ? 'Hide itinerary' : 'Itinerary'}
               </button>
-            </div>
-            <DayPanel
-              day={activeDay}
-              mode={mode}
-              onSelect={setSelectedEvent}
-              mobileOpen={showItin}
-              onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
-            />
-          </>
-        ) : (
+        </div>
+        {view === 'map' && (
+          <DayPanel
+            day={activeDay}
+            mode={mode}
+            onSelect={setSelectedEvent}
+            mobileOpen={showItin}
+            onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
+          />
+        )}
+        {view === 'cal' && (
           <CalendarView
             range={range}
             mode={mode}
@@ -341,19 +362,21 @@ export default function App() {
         />
       )}
       {ghost.on && ghost.cfg.here && (
-        <MeetHereTray
-          ghost={ghost}
-          view={view}
-          range={range}
-          onClassic={() => { const place = ghost.cfg.them; ghost.exit(); setSpotSuggest(place); }}
-        />
+        <MeetHereTray ghost={ghost} view={view} range={range} onCalendar={() => setView('cal')} />
       )}
 
       {showConflicts && <ConflictsPanel conflicts={conflicts} onClose={() => setShowConflicts(false)} />}
       {showSuggest && <SuggestModal range={range} onClose={() => setShowSuggest(false)} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSync={(s) => { setShowSettings(false); doSync(s); }} />}
       {selectedEvent && <EventModal ev={selectedEvent} onClose={() => setSelectedEvent(null)} />}
-      {spotSuggest && <SpotSuggestModal spot={spotSuggest} day={activeDay} onClose={() => setSpotSuggest(null)} />}
+      {spotSuggest && (
+        <SpotSuggestModal
+          spot={spotSuggest}
+          day={activeDay}
+          onClose={() => setSpotSuggest(null)}
+          onSeeCalendar={() => { const place = spotSuggest; setSpotSuggest(null); seeInCalendar(place); }}
+        />
+      )}
       {travelBlock && <TravelBlockModal leg={travelBlock.leg} day={travelBlock.day} onClose={() => setTravelBlock(null)} />}
     </div>
   );

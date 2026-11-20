@@ -104,11 +104,11 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
           return (
             <React.Fragment key={ev.id}>
               <div
-                className={`stop-card${(ev.note || ev.tbd) && !ev.skipped ? ' flagged' : ''}${ev.skipped ? ' skipped' : ''} clickable`}
-                onClick={(e) => { if (e.target.closest('a')) return; onSelect && onSelect(ev); }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && onSelect && onSelect(ev)}
+                className={`stop-card${(ev.note || ev.tbd) && !ev.skipped ? ' flagged' : ''}${ev.skipped ? ' skipped' : ''}${ev.tentative ? ' proposed' : ' clickable'}`}
+                onClick={(e) => { if (ev.tentative || e.target.closest('a')) return; onSelect && onSelect(ev); }}
+                role={ev.tentative ? undefined : 'button'}
+                tabIndex={ev.tentative ? undefined : 0}
+                onKeyDown={(e) => !ev.tentative && e.key === 'Enter' && onSelect && onSelect(ev)}
               >
                 <div className={`stop-num${!num ? ' virtual' : ''}`} style={num ? { '--hood': color } : undefined}>
                   {ev.kind === 'flight' ? '✈' : num || (ev.skipped ? '–' : ev.virtual ? '▶' : '?')}
@@ -124,6 +124,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                     {ev.virtual && !ev.override && <span className="chip virtual">Virtual</span>}
                     {ev.override === 'remote' && <span className="chip override">Not in person</span>}
                     {ev.skipped && <span className="chip override">Skipping</span>}
+                    {ev.tentative && <span className="chip proposed">Proposed</span>}
                     {ev.kind === 'hold' && <span className="chip hold">Hold</span>}
                     {ev.kind === 'flight' && <span className="chip flight">Flight</span>}
                     {ev.homeCity && <span className="chip ny">NYC event</span>}
@@ -144,7 +145,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                       </>
                     ) : v && !ev.tbd ? (
                       <a href={gmapsPlace(v)} target="_blank" rel="noreferrer">
-                        {v.name} · {v.hood}
+                        {v.name}{v.hood && v.hood !== v.name ? ` · ${v.hood}` : ''}
                       </a>
                     ) : ev.virtual ? (
                       'Video call'
@@ -185,7 +186,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
                   <a href={gmapsDir(leg.va, leg.vb, leg.mode)} target="_blank" rel="noreferrer">
                     gmaps ↗
                   </a>
-                  {leg.leaveBy == null && (
+                  {leg.leaveBy == null && !leg.from.tentative && !leg.to.tentative && (
                     <button className="leg-add" onClick={() => onTravel && onTravel(leg)} title="Add a travel block to your calendar">
                       ＋ block
                     </button>
@@ -195,7 +196,7 @@ export default function DayPanel({ day, mode, onSelect, mobileOpen, onTravel }) 
               {free && (
                 <div className="free-row">
                   <b>{Math.floor(free.gap / 60)}h{free.gap % 60 ? ` ${free.gap % 60}m` : ''}</b> open after this —{' '}
-                  {departVenue(free.from) ? `you'll be in ${departVenue(free.from).hood}` : 'location flexible'}
+                  {departVenue(free.from) ? `you'll be ${free.from.tentative ? 'at' : 'in'} ${departVenue(free.from).hood}` : 'location flexible'}
                 </div>
               )}
             </React.Fragment>

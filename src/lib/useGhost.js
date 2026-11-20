@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { parseMessage, rankWindows, rankSlots, fmtSlotTime, localMinutes, nearestCafe } from './suggest.js';
-import { eventsForDay, FLIGHT_PRE_MIN, FLIGHT_POST_MIN } from './schedule.js';
+import { parseMessage, rankWindows, rankSlots, fmtSlotTime, localMinutes, nearestCafe, placeEventTitle } from './suggest.js';
+import { eventsForDay, setTentative, FLIGHT_PRE_MIN, FLIGHT_POST_MIN } from './schedule.js';
 import { loadSettings } from './store.js';
 import { eachDay, fmtDayLong, fmtDayShort, minutesOfDay, toEpoch } from './time.js';
 
@@ -41,6 +41,21 @@ function clock(min) {
 // On the grid a column can be ~100px wide, so say am/pm once when both ends
 // share it: "3–3:45pm", but "11:30am–12:15pm".
 const compactRange = (from, to) => (from.slice(-2) === to.slice(-2) ? `${from.slice(0, -2)}–${to}` : `${from}–${to}`);
+
+// Epoch ms → the local-offset ISO form real events use.
+function isoAt(ms, off) {
+  const sign = off[0] === '-' ? -1 : 1;
+  const [h, m] = off.slice(1).split(':').map(Number);
+  return new Date(ms + sign * (h * 60 + m) * 60000).toISOString().slice(0, 19) + off;
+}
+
+// A searched address can come back named by its house number alone; call it
+// by its street instead.
+export function placeLabel(place) {
+  return /^\d+[a-z]?$/i.test(place.name) && place.address
+    ? place.address.split(',').slice(0, 2).map((part) => part.trim()).join(' ')
+    : place.name;
+}
 
 function deviceOffset() {
   const mins = -new Date().getTimezoneOffset();
@@ -156,7 +171,7 @@ export function useGhost(range, dataVersion) {
     const ms = new Date(`${custom.day}T${p2(Math.floor(custom.startMin / 60))}:${p2(custom.startMin % 60)}:00${off}`).getTime();
     const from = fmtSlotTime(ms, off), to = fmtSlotTime(ms + durMs, off);
     const hit = eventsForDay(custom.day).find(
-      (e) => !e.homeCity && !e.skipped && e.kind !== 'hold' && toEpoch(e.start) < ms + durMs && ms < toEpoch(e.end)
+      (e) => !e.homeCity && !e.skipped && !e.tentative && e.kind !== 'hold' && toEpoch(e.start) < ms + durMs && ms < toEpoch(e.end)
     );
     customSlot = {
       id: 'custom', ms, w: { offset: off, day: custom.day }, day: custom.day,
@@ -171,6 +186,25 @@ export function useGhost(range, dataVersion) {
   const picked = customSlot
     ? [customSlot]
     : slots.filter((s) => picks.includes(s.id)).sort((a, b) => a.ms - b.ms);
+  // Meet here: the chosen time is laid over the real events as a proposed
+  // stop, so the day's route, map and itinerary show how it would fit.
+  // (Set while rendering, before anything below reads the events.)
+  const chosen = on && cfg.here && cfg.them ? picked[0] : null;
+  setTentative(
+    chosen
+      ? [{
+          id: 'proposed-meeting',
+          tentative: true,
+          kind: 'meeting',
+          title: placeEventTitle({ ...cfg.them, name: placeLabel(cfg.them) }, Math.floor(chosen.startMin / 60)),
+          day: chosen.day,
+          start: isoAt(chosen.ms, chosen.w.offset),
+          end: isoAt(chosen.ms + durMs, chosen.w.offset),
+          geo: { ...cfg.them, name: placeLabel(cfg.them), hood: cfg.them.hood || placeLabel(cfg.them) },
+        }]
+      : []
+  );
+
   const clashesPick = (s) => picked.some((p) => p.id !== s.id && clash(p, s));
   // Suggest: a new time can never land on an existing one. Meet here: there is
   // only one time, so a click anywhere simply moves it.

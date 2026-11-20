@@ -43,7 +43,16 @@ function deoverlap(stops) {
   });
 }
 
-export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect, ghost }) {
+// `visible`: the map stays mounted behind the calendar so that a searched
+// place, spots and the zoom survive a view switch; while hidden it has no
+// size, so framing is deferred until it is shown again.
+// `onPlaceFocus`: tells the app which place is selected in search (or null).
+export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect, ghost, visible = true, onPlaceFocus }) {
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const pendingFitRef = useRef(false); // a day was framed while hidden
+  const placeFocusRef = useRef(onPlaceFocus);
+  placeFocusRef.current = onPlaceFocus;
   // PROTOTYPE (suggest mode): redraw when their location or the picks change.
   const ghostKey = ghost
     ? `${ghost.cfg.them ? `${ghost.cfg.them.lat},${ghost.cfg.them.lng}` : ''}|${ghost.picked.map((s) => s.ms).join(',')}`
@@ -72,6 +81,11 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
   const [linked, setLinked] = useState(null); // { ev, venue } meeting to measure against
   const pickedRef = useRef(null);
   pickedRef.current = picked;
+  // Meet here is already running for the searched place (its bar is docked
+  // below); once a time is chosen on this day the place is a stop in the route.
+  const meetingHere = !!(ghost && ghost.cfg.here && ghost.cfg.them && picked
+    && Math.abs(ghost.cfg.them.lat - picked.lat) < 1e-5 && Math.abs(ghost.cfg.them.lng - picked.lng) < 1e-5);
+  const proposedHere = meetingHere && ghost.picked.some((s) => s.day === day);
   const searchLayerRef = useRef(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -94,6 +108,22 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
       map.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (placeFocusRef.current) placeFocusRef.current(searchOn && picked ? picked : null);
+  }, [searchOn, picked]);
+
+  // Shown again after being hidden: re-measure, then apply any framing that
+  // was skipped while there was nothing to frame into.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!visible || !map) return;
+    map.invalidateSize({ animate: false });
+    if (pendingFitRef.current && fitRef.current) {
+      pendingFitRef.current = false;
+      fitRef.current();
+    }
+  }, [visible]);
 
   // ---- itinerary layer ----
   useEffect(() => {
@@ -127,26 +157,29 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     }
 
     placed.forEach(({ ev, v, lat, lng }, i) => {
+      const proposed = !!ev.tentative; // Meet here: the time being chosen, not on the calendar yet
       const color = HOOD_COLORS[v.hood] || '#5a6572';
       const ring = ev.virtual ? 'border:2px dashed #fff;' : '';
       const m = L.marker([lat, lng], {
         icon: L.divIcon({
           className: '',
-          html: `<div class="wp-marker" style="background:${color};width:28px;height:28px;${ring}">${i + 1}</div>`,
+          html: proposed
+            ? `<div class="wp-marker proposed" style="width:28px;height:28px">${i + 1}</div>`
+            : `<div class="wp-marker" style="background:${color};width:28px;height:28px;${ring}">${i + 1}</div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         }),
         zIndexOffset: 100 + i,
       }).addTo(layer);
       m.bindTooltip(
-        `<b>${fmtTime(ev.start)} · ${ev.title}</b><span class="sub">${ev.virtual ? `Virtual · taken from ${v.label || v.name}` : `${v.name} — ${v.hood}`}</span>`,
+        `<b>${fmtTime(ev.start)} · ${ev.title}</b><span class="sub">${proposed ? 'Proposed — not on your calendar yet' : ev.virtual ? `Virtual · taken from ${v.label || v.name}` : `${v.name} — ${v.hood}`}</span>`,
         { className: 'wp-tip' }
       );
       // In search mode with a place picked, tapping a meeting measures the hop to
       // it; otherwise a pin opens its event, where it can be taken off the map.
       m.on('click', () => {
         if (pickedRef.current) setLinked({ ev, venue: v });
-        else if (selectRef.current) selectRef.current(ev);
+        else if (!proposed && selectRef.current) selectRef.current(ev);
       });
       pts.push([lat, lng]);
     });
@@ -173,17 +206,20 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     });
 
     legs.forEach((leg) => {
+      const toProposed = !!(leg.from.tentative || leg.to.tentative);
       L.polyline(
         [
           [leg.va.lat, leg.va.lng],
           [leg.vb.lat, leg.vb.lng],
         ],
-        { color: leg.tight ? '#c5321f' : '#5a6572', weight: 2.5, dashArray: '6 7', opacity: 0.85 }
+        toProposed && !leg.tight
+          ? { color: '#2e7d54', weight: 3.5, dashArray: '7 6', opacity: 1 }
+          : { color: leg.tight ? '#c5321f' : '#5a6572', weight: 2.5, dashArray: '6 7', opacity: 0.85 }
       ).addTo(layer);
       const mid = [(leg.va.lat + leg.vb.lat) / 2, (leg.va.lng + leg.vb.lng) / 2];
       const chip = L.marker(mid, {
         icon: L.divIcon({
-          className: `leg-chip-label${leg.tight ? ' tight' : ''}`,
+          className: `leg-chip-label${leg.tight ? ' tight' : toProposed ? ' ghost' : ''}`,
           html: leg.intercity
             ? `<span>${leg.km > 500 ? '✈' : '🚆'} different cities${leg.viaFlight ? '' : leg.tight ? ` · ${leg.gapMin} min gap` : ''}</span>`
             : leg.leaveBy != null
@@ -193,12 +229,15 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         }),
       }).addTo(layer);
       // a cross-city hop or the ride to a flight isn't a plain travel block
-      if (!leg.intercity && leg.leaveBy == null) chip.on('click', () => travelRef.current && travelRef.current(leg));
+      if (!leg.intercity && leg.leaveBy == null && !toProposed) chip.on('click', () => travelRef.current && travelRef.current(leg));
     });
 
     // PROTOTYPE (suggest mode): where the other person is, and for each time
     // picked on this day the detour past them from the meetings on either side.
-    if (ghost && ghost.cfg.them) {
+    // Meet here with a time chosen on this day: the place is already a stop in
+    // the route above (pin, travel both ways), so no star or detour is drawn.
+    const placedInRoute = !!(ghost && ghost.cfg.here && ghost.picked.some((s) => s.day === day));
+    if (ghost && ghost.cfg.them && !placedInRoute) {
       const t = ghost.cfg.them;
       const tm = L.marker([t.lat, t.lng], {
         icon: L.divIcon({
@@ -234,7 +273,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
 
     // In suggest mode the picked-time labels sit to the right of their star,
     // so leave room for them on that side.
-    const labelRoom = ghost && ghost.cfg.them && ghost.picked.some((s) => s.day === day) ? 210 : 56;
+    const labelRoom = ghost && ghost.cfg.them && !placedInRoute && ghost.picked.some((s) => s.day === day) ? 210 : 56;
     // Framing a day is done without animation: an animated zoom is queued on
     // the next frame, and a second request arriving before it runs (switching
     // day right after the map opens) could lose to it and leave the map
@@ -250,7 +289,8 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     // still animating; in that case wait for it to finish.
     if (fitRef.current) map.off('zoomend', fitRef.current); // drop a superseded pending fit
     fitRef.current = fit;
-    if (map._animatingZoom) map.once('zoomend', fit);
+    if (!visibleRef.current) pendingFitRef.current = true; // no size to frame into yet
+    else if (map._animatingZoom) map.once('zoomend', fit);
     else fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, mode, dataVersion, ghostKey]);
@@ -343,6 +383,9 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
     if (!layer) return;
     layer.clearLayers();
     if (!searchOn || !picked) return;
+    // Its numbered stop in the day's route already marks the spot; a search
+    // pin on top would hide the number.
+    if (proposedHere) return;
     const pin = L.marker([picked.lat, picked.lng], {
       zIndexOffset: 500,
       icon: L.divIcon({
@@ -373,7 +416,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         }),
       }).addTo(layer);
     }
-  }, [searchOn, picked, linked, mode]);
+  }, [searchOn, picked, linked, mode, proposedHere]);
 
   function toggleSearch() {
     const next = !searchOn;
@@ -433,12 +476,14 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
               ? `~${liveMinutes(picked, linked.venue, mode) ?? travelMinutes(picked, linked.venue, mode)} min ${MODE_LABEL[mode]} to ${linked.ev.title} — tap another meeting to compare`
               : 'Tap any meeting pin to see travel time from here'}
           </div>
-          <button
-            className="pill-btn primary"
-            onClick={() => onSpotSuggest && onSpotSuggest({ ...picked, type: 'search' })}
-          >
-            ＋ Create a meeting here
-          </button>
+          {!meetingHere && (
+            <button
+              className="pill-btn primary"
+              onClick={() => onSpotSuggest && onSpotSuggest({ ...picked, type: 'search' })}
+            >
+              ＋ Create a meeting here
+            </button>
+          )}
         </div>
       )}
     </>
