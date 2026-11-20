@@ -108,8 +108,11 @@ export default function SuggestTray({ ghost, view, onClassic }) {
           ))}
         </div>
         <div className="g-tray-addr">
+          {/* Shows a place carried over from "Meet here" (Offer several times
+              instead); remounts when the place changes from outside. */}
           <AddressInput
-            key={addrKey}
+            key={`${addrKey}-${cfg.them ? `${cfg.them.lat},${cfg.them.lng}` : ''}`}
+            initial={cfg.them ? cfg.them.address || cfg.them.name : ''}
             dropUp
             placeholder="Where are they?"
             onSelect={(place) => ghost.set({ them: place })}

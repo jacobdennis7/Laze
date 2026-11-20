@@ -2,18 +2,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { parseMessage, rankWindows, rankSlots, fmtSlotTime, localMinutes, nearestCafe } from './suggest.js';
 import { eventsForDay, FLIGHT_PRE_MIN, FLIGHT_POST_MIN } from './schedule.js';
 import { loadSettings } from './store.js';
-import { eachDay, fmtDayLong, fmtDayShort, minutesOfDay } from './time.js';
+import { eachDay, fmtDayLong, fmtDayShort, minutesOfDay, toEpoch } from './time.js';
 
-// PROTOTYPE — Suggest as a mode ("ghost mode"): candidate meeting times are
-// drawn in place on the calendar and map instead of listed in a pop-up.
-// Everything here sits on the same engine the pop-up uses (rankWindows /
-// rankSlots), so working hours, buffers, overrides and message hints apply.
+// PROTOTYPE — picking meeting times on the calendar itself ("ghost mode")
+// instead of from a pop-up list. Everything sits on the same engine the
+// pop-ups use (rankWindows / rankSlots), so working hours, buffers,
+// overrides and message hints apply.
+//
+// One canvas, two ways in:
+//   Suggest   (cfg.here = false) — the place is optional; pick any number of
+//             times and send them as a reply.
+//   Meet here (cfg.here = true)  — the place is already chosen (from map
+//             search or a spot); pick THE time and create the event.
 //
 // What ends up on the calendar:
 //   windows   — free stretches (a quiet wash: "you can click here")
 //   suggested — the engine's best few times, never overlapping each other
-//               or anything picked; what the reply offers until you pick
-//   picked    — times the user chose (never overlapping, any number, date order)
+//               or anything picked
+//   picked    — what the user chose (Suggest: any number, never overlapping,
+//               date order; Meet here: exactly one — a click moves it)
 //   blocked   — time that looks empty but isn't offered (around a flight),
 //               drawn so the gap in the green explains itself
 
@@ -31,14 +38,27 @@ function clock(min) {
   return `${hh}${m ? `:${String(m).padStart(2, '0')}` : ''}${h >= 12 ? 'pm' : 'am'}`;
 }
 
+// On the grid a column can be ~100px wide, so say am/pm once when both ends
+// share it: "3–3:45pm", but "11:30am–12:15pm".
+const compactRange = (from, to) => (from.slice(-2) === to.slice(-2) ? `${from.slice(0, -2)}–${to}` : `${from}–${to}`);
+
+function deviceOffset() {
+  const mins = -new Date().getTimezoneOffset();
+  const a = Math.abs(mins);
+  return `${mins < 0 ? '-' : '+'}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
+}
+
 export function useGhost(range, dataVersion) {
   const [on, setOn] = useState(false);
-  const [cfg, setCfg] = useState({ duration: 45, them: null, msg: '' });
+  const [cfg, setCfg] = useState({ duration: 45, them: null, msg: '', here: false });
   const [picks, setPicks] = useState([]); // slot ids (start time, epoch ms)
+  // Meet here only: a time typed in by hand, which may sit outside the green.
+  const [custom, setCustom] = useState(null); // { day, startMin }
 
   // A pick is a specific time of a specific length in a specific range —
   // change either and the old picks no longer mean what the user chose.
   useEffect(() => { setPicks([]); }, [cfg.duration, range.start, range.end]);
+  useEffect(() => { setCustom(null); }, [range.start, range.end]);
 
   const model = useMemo(() => {
     if (!on) return null;
@@ -53,16 +73,12 @@ export function useGhost(range, dataVersion) {
       const startMin = localMinutes(ms, w.offset);
       const from = fmtSlotTime(ms, w.offset);
       const to = fmtSlotTime(ms + durMs, w.offset);
-      const range12 = `${from}–${to}`;
-      // On the grid a column can be ~100px wide, so say am/pm once when both
-      // ends share it: "3–3:45pm", but "11:30am–12:15pm".
-      const compact = from.slice(-2) === to.slice(-2) ? `${from.slice(0, -2)}–${to}` : range12;
       return {
         id: ms, ms, w, day: w.day,
         startMin, endMin: startMin + cfg.duration,
-        short: compact,
-        label: `${fmtDayLong(w.day)}, ${range12}`,
-        chip: `${fmtDayShort(w.day)} ${fmtSlotTime(ms, w.offset)}`,
+        short: compactRange(from, to),
+        label: `${fmtDayLong(w.day)}, ${from}–${to}`,
+        chip: `${fmtDayShort(w.day)} ${from}`,
         detourMin: w.detourMin,
       };
     });
@@ -119,34 +135,89 @@ export function useGhost(range, dataVersion) {
 
   const durMs = cfg.duration * 60000;
   const clash = (a, b) => a.ms < b.ms + durMs && b.ms < a.ms + durMs;
-
   const slots = model?.slots || [];
-  const picked = slots.filter((s) => picks.includes(s.id)).sort((a, b) => a.ms - b.ms);
-  const overlapsPick = (s) => picked.some((p) => p.id !== s.id && clash(p, s));
+
+  // The UTC offset a given day is displayed in: from its free time, else any
+  // event that day, else this device.
+  function offsetFor(day) {
+    const win = (model?.windows || []).find((x) => x.day === day);
+    if (win) return win.w.offset;
+    const ev = eventsForDay(day)[0];
+    if (ev && /[+-]\d{2}:\d{2}$/.test(ev.start)) return ev.start.slice(-6);
+    return deviceOffset();
+  }
+
+  // A hand-entered time (Meet here), shaped like a slot so it draws and reads
+  // the same, plus a note of what it runs into.
+  let customSlot = null;
+  if (on && cfg.here && custom) {
+    const off = offsetFor(custom.day);
+    const p2 = (n) => String(n).padStart(2, '0');
+    const ms = new Date(`${custom.day}T${p2(Math.floor(custom.startMin / 60))}:${p2(custom.startMin % 60)}:00${off}`).getTime();
+    const from = fmtSlotTime(ms, off), to = fmtSlotTime(ms + durMs, off);
+    const hit = eventsForDay(custom.day).find(
+      (e) => !e.homeCity && !e.skipped && e.kind !== 'hold' && toEpoch(e.start) < ms + durMs && ms < toEpoch(e.end)
+    );
+    customSlot = {
+      id: 'custom', ms, w: { offset: off, day: custom.day }, day: custom.day,
+      startMin: custom.startMin, endMin: custom.startMin + cfg.duration,
+      short: compactRange(from, to),
+      label: `${fmtDayLong(custom.day)}, ${from}–${to}`,
+      chip: `${fmtDayShort(custom.day)} ${from}`,
+      detourMin: 0, custom: true, clash: hit ? hit.title : null,
+    };
+  }
+
+  const picked = customSlot
+    ? [customSlot]
+    : slots.filter((s) => picks.includes(s.id)).sort((a, b) => a.ms - b.ms);
+  const clashesPick = (s) => picked.some((p) => p.id !== s.id && clash(p, s));
+  // Suggest: a new time can never land on an existing one. Meet here: there is
+  // only one time, so a click anywhere simply moves it.
+  const overlapsPick = cfg.here ? () => false : clashesPick;
 
   const suggested = [];
   for (const s of slots) {
     if (suggested.length >= MAX_SUGGESTED) break;
-    if (picks.includes(s.id) || overlapsPick(s) || suggested.some((t) => clash(t, s))) continue;
+    if (picked.some((p) => p.id === s.id) || clashesPick(s) || suggested.some((t) => clash(t, s))) continue;
     suggested.push(s);
   }
   suggested.sort((a, b) => a.ms - b.ms); // chosen by rank, offered in date order
 
   function toggle(id) {
+    if (cfg.here) {
+      setCustom(null);
+      setPicks(id === 'custom' || picks.includes(id) ? [] : [id]);
+      return;
+    }
     if (picks.includes(id)) {
       setPicks((p) => p.filter((x) => x !== id));
       return;
     }
     const s = slots.find((x) => x.id === id);
-    if (!s || overlapsPick(s)) return; // never stack one time on another
+    if (!s || clashesPick(s)) return; // never stack one time on another
     // drop ids that no longer exist while adding
     setPicks((p) => [...p.filter((x) => slots.some((y) => y.id === x)), id]);
   }
 
+  const reset = () => { setPicks([]); setCustom(null); };
+
   return {
     on,
-    enter: () => setOn(true),
-    exit: () => { setOn(false); setPicks([]); },
+    // Suggest: the place is optional and starts empty.
+    enter: () => { reset(); setCfg((c) => ({ ...c, here: false, them: null, msg: '' })); setOn(true); },
+    // Meet here: the place is the point. Cafés default to 45 min, other spots to an hour.
+    enterHere: (place) => {
+      reset();
+      setCfg((c) => ({
+        ...c, here: true, them: place, msg: '',
+        duration: place.type === 'cafe' ? 45 : ['restaurant', 'bar'].includes(place.type) ? 60 : c.duration,
+      }));
+      setOn(true);
+    },
+    // From Meet here: keep the place, but offer several times in a reply instead.
+    toSuggest: () => { reset(); setCfg((c) => ({ ...c, here: false })); },
+    exit: () => { setOn(false); reset(); setCfg((c) => ({ ...c, here: false, them: null, msg: '' })); },
     cfg,
     set: (patch) => setCfg((c) => ({ ...c, ...patch })),
     picks,
@@ -154,7 +225,9 @@ export function useGhost(range, dataVersion) {
     suggested,
     overlapsPick,
     toggle,
-    clearPicks: () => setPicks([]),
+    clearPicks: reset,
+    setCustomTime: (day, startMin) => { setPicks([]); setCustom({ day, startMin }); },
+    offsetFor,
     windows: model?.windows || [],
     slots,
     blocked: model?.blocked || [],

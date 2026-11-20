@@ -46,7 +46,7 @@ function deoverlap(stops) {
 export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTravel, onSelect, ghost }) {
   // PROTOTYPE (suggest mode): redraw when their location or the picks change.
   const ghostKey = ghost
-    ? `${ghost.cfg.them ? `${ghost.cfg.them.lat},${ghost.cfg.them.lng}` : ''}|${ghost.picks.join(',')}`
+    ? `${ghost.cfg.them ? `${ghost.cfg.them.lat},${ghost.cfg.them.lng}` : ''}|${ghost.picked.map((s) => s.ms).join(',')}`
     : '';
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -209,7 +209,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         }),
         zIndexOffset: 300,
       }).addTo(layer);
-      tm.bindTooltip(`<b>${t.name}</b><span class="sub">Where they are</span>`, { className: 'wp-tip' });
+      tm.bindTooltip(`<b>${t.name}</b><span class="sub">${ghost.cfg.here ? 'Meeting place' : 'Where they are'}</span>`, { className: 'wp-tip' });
       // only zoom to include them when they're in the same city as the day
       if (!pts.length || pts.some(([lat, lng]) => haversineKm({ lat, lng }, t) <= FAR_KM)) pts.push([t.lat, t.lng]);
 
@@ -276,7 +276,7 @@ export default function MapView({ day, mode, dataVersion, onSpotSuggest, onTrave
         <b>${s.name}</b>
         <div class="sub">${s.type}${s.cuisine ? ` · ${s.cuisine}` : ''}${s.address ? ` · ${s.address}` : ''}</div>
         <div class="row">
-          <button class="spot-suggest">＋ Suggest a time here</button>
+          <button class="spot-suggest">＋ Create a meeting here</button>
           <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.address || ''} ${s.lat},${s.lng}`)}" target="_blank" rel="noreferrer">gmaps ↗</a>
         </div>`;
       el.querySelector('.spot-suggest').addEventListener('click', () => {

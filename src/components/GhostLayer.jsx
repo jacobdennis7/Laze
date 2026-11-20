@@ -90,7 +90,7 @@ export default function GhostLayer({ day, ghost }) {
       {/* Removing takes a deliberate click on the ✕: a stray click on the block
           itself (easy to do while placing a neighbour) must not delete it. */}
       {ghost.picked.filter((s) => s.day === day).map((s) => (
-        <div key={`p${s.id}`} className="g-picked" style={block(s.startMin, s.endMin)} title={s.label}>
+        <div key={`p${s.id}`} className={`g-picked${s.clash ? ' clash' : ''}`} style={block(s.startMin, s.endMin)} title={s.label}>
           <span className="g-picked-label">✓ {s.short}<Detour s={s} /></span>
           <button className="g-x" onClick={() => ghost.toggle(s.id)} aria-label={`Remove ${s.label}`} title="Remove this time">✕</button>
         </div>

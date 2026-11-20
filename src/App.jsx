@@ -13,6 +13,7 @@ import RangePicker from './components/RangePicker.jsx';
 import MapView from './components/MapView.jsx';
 import Wordmark from './components/Wordmark.jsx';
 import SuggestTray from './components/SuggestTray.jsx';
+import MeetHereTray from './components/MeetHereTray.jsx';
 import { useGhost } from './lib/useGhost.js';
 import DayPanel from './components/DayPanel.jsx';
 import CalendarView from './components/CalendarView.jsx';
@@ -265,7 +266,13 @@ export default function App() {
                 day={activeDay}
                 mode={mode}
                 dataVersion={`${store.version}.${rVersion}.${pVersion}`}
-                onSpotSuggest={setSpotSuggest}
+                // PROTOTYPE: "Create a meeting here" (map search or a spot)
+                // opens the calendar with the place set, not the pop-up.
+                onSpotSuggest={(place) => {
+                  ghost.enterHere(place);
+                  setView('cal');
+                  track('spot_suggest_opened', { surface: 'ghost', source: place.type === 'search' ? 'search' : 'spot' });
+                }}
                 onTravel={(leg) => setTravelBlock({ leg, day: activeDay })}
                 onSelect={setSelectedEvent}
                 ghost={ghost.on ? ghost : null}
@@ -326,11 +333,19 @@ export default function App() {
         )}
       </main>
 
-      {ghost.on && (
+      {ghost.on && !ghost.cfg.here && (
         <SuggestTray
           ghost={ghost}
           view={view}
           onClassic={() => { ghost.exit(); setShowSuggest(true); }}
+        />
+      )}
+      {ghost.on && ghost.cfg.here && (
+        <MeetHereTray
+          ghost={ghost}
+          view={view}
+          range={range}
+          onClassic={() => { const place = ghost.cfg.them; ghost.exit(); setSpotSuggest(place); }}
         />
       )}
 

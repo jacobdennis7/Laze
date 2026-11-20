@@ -144,6 +144,14 @@ export function rankSlots(windows, durationMin, stepMin = 30) {
     .sort((a, b) => a.ci - b.ci || a.wi - b.wi);
 }
 
+// Calendar title for a meeting at a chosen place: "Coffee — Sightglass",
+// "Dinner — …" at a restaurant from 5pm, otherwise "Meeting — 2424 Jones St".
+export function placeEventTitle(place, localHour) {
+  const BY_TYPE = { cafe: 'Coffee', restaurant: 'Lunch', bar: 'Drinks' };
+  const kind = place.type === 'restaurant' && localHour >= 17 ? 'Dinner' : BY_TYPE[place.type] || 'Meeting';
+  return `${kind} — ${place.name}`;
+}
+
 // Local minutes-of-day for an epoch ms in a window's UTC offset — where a
 // suggested time sits on the calendar grid.
 export function localMinutes(ms, off) {
