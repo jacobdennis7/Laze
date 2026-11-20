@@ -103,6 +103,21 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   voyager` with `?key=` — CARTO required keys as of Sep 2026; Jacob got a free
   key, 5M tiles/mo. This pale-Positron look is the canonical map identity —
   Stadia styles were tried and rejected. Keyless OSM is the code fallback).
+- **Maps billing & quotas** (set 20 Nov 2026): the GCP free trial ended that
+  day and every Maps call returned a bare `403 PERMISSION_DENIED` ("The
+  caller does not have permission") until Jacob upgraded to a paid account —
+  if Spots/drive times/autocomplete all fail at once, check billing first.
+  Spend caps don't exist for Maps, so the hard ceiling is per-day quotas
+  (Google Maps Platform → Quotas): Places (New) SearchText 200, Autocomplete
+  300, GetPlace 100, SearchNearby 10; Routes ComputeRoutes 300,
+  ComputeRouteMatrix 10. A $50/month alerts-only budget ("Laze monthly")
+  emails on spend. **Launch day: raise SearchText 2,000, Autocomplete 3,000,
+  GetPlace 500, ComputeRoutes 3,000 and the budget to ~$300**, or new users
+  hit the caps. When a cap is hit Laze degrades to estimates/OSM; the OSM
+  Overpass fallback for Spots timed out on all three mirrors that day, so
+  Spots shows "Search failed" instead. Jacob chose not to cut API cost (he
+  would rather charge later). Known ToS gap: Google allows caching results
+  ~30 days; the geocode and route caches in localStorage never expire.
 - **Analytics**: Vercel Web Analytics (dashboard toggle) + PostHog
   (`src/lib/analytics.js` — env-gated on VITE_POSTHOG_KEY + laze.to hostname,
   lazy chunk, autocapture/session-recording off, explicit snake_case events,
