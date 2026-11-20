@@ -14,7 +14,8 @@ Google OAuth app (branding + calendar.readonly scope both approved).
   `google.js` (GIS auth + calendar sync + geocoding), `geo.js` (travel
   estimates, gmaps links, nearby spots), `suggest.js` (slot ranking, booking
   links), `places.js` (autocomplete), `store.js` (event store + settings),
-  `prefs.js` (home/office/favorites/placements), `routes.js` (live drive times).
+  `prefs.js` (home/office/favorites/placements), `routes.js` (live drive times),
+  `flags.js` (per-browser feature switches).
 - `api/` — Vercel functions: `auth/{login,callback,token,logout}.js`
   (authorization-code flow; refresh token AES-sealed in httpOnly cookie
   `laze_session`, server stores NOTHING), `booking.js` (Calendly availability
@@ -122,9 +123,24 @@ the page context with the bundle's key; referrer restrictions pass there).
 
 ## Backlog
 
-- Suggest-as-a-mode redesign: local branch `suggest-mode` has the working
-  prototype (drawer + ghost slots in the calendar) — tabled, awaiting Jacob's
-  verdict. Booking-link availability as highlighted ghosts is the endgame.
+- **Ghost mode is live but switched off** (v0.10.0, Nov 2026), awaiting
+  Jacob's verdict on his own phone and calendar. `src/lib/flags.js` `GHOST`:
+  per-browser, `?ghost=1` turns it on, `?ghost=0` off, on by default in dev.
+  With it on, Suggest becomes a mode (open time drawn on the calendar, picks
+  feed the reply — `useGhost.js`, `GhostLayer`, `SuggestTray`), and "Create a
+  meeting here" (search or a spot) gets "See in calendar" → `MeetHereTray`:
+  one time is chosen, published as a *tentative* event (`setTentative` in
+  schedule.js) so the map/itinerary show it as a proposed stop in that day's
+  route. Tentative events never count as busy time or raise conflicts. The
+  Calendar toggle carries a searched place along. With it off, users get the
+  SuggestModal pop-up as before. To launch: make `GHOST` true. Open
+  questions: should holds block suggestions (they count as free today);
+  booking-link availability isn't in the mode yet (only in "List view");
+  travel-aware green and per-day detour ranking were planned, not built.
+- The map stays mounted behind the calendar (`hidden` + `visible` prop) so a
+  searched place, spots and zoom survive view switches — for everyone, not
+  just ghost mode. A hidden Leaflet map needs `invalidateSize` and a deferred
+  fit when it is shown again (MapView handles both).
 - iOS via Capacitor wrapper (auth foundation done — server code flow); needs
   Apple Developer account ($99/yr).
 - cal.com support in api/booking.js (Calendly only today).

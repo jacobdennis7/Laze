@@ -7,21 +7,40 @@ import { DAY_START, DAY_END, PX_PER_MIN, yFor } from '../lib/calgrid.js';
 import { eachDay, minutesOfDay, fmtTimeShort, fmtDayTiny, fmtDayShort } from '../lib/time.js';
 import GhostLayer from './GhostLayer.jsx';
 
-// Greedy column packing for overlapping events.
+// Greedy column packing for overlapping events. Columns are counted per
+// cluster of events that actually overlap: one triple-booked evening must not
+// squeeze the morning's lone meetings to a third of the day's width.
 function packColumns(evs) {
   const sorted = [...evs].sort((a, b) => minutesOfDay(a.start) - minutesOfDay(b.start));
-  const cols = [];
   const placed = [];
+  let cluster = [];
+  let cols = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    for (const p of cluster) placed.push({ ...p, nCols: cols.length });
+    cluster = [];
+    cols = [];
+    clusterEnd = -1;
+  };
   for (const ev of sorted) {
     const s = minutesOfDay(ev.start);
+    let e = minutesOfDay(ev.end);
+    if (e <= s) e = Math.min(s + 60, DAY_END); // crosses midnight — same clamp as the tile
+    if (cluster.length && s >= clusterEnd) flush();
     let col = 0;
     while (cols[col] !== undefined && cols[col] > s) col++;
-    cols[col] = minutesOfDay(ev.end);
-    placed.push({ ev, col });
+    cols[col] = e;
+    cluster.push({ ev, col });
+    clusterEnd = Math.max(clusterEnd, e);
   }
-  const nCols = cols.length;
-  return placed.map((p) => ({ ...p, nCols }));
+  flush();
+  return placed;
 }
+
+const GUTTER_PX = 56;
+// 100px keeps a 7-day week on screen at tablet/half-window widths; at 120px
+// the last day was pushed off the right edge behind a scrollbar.
+const COL_MIN_PX = 100;
 
 const SPANS = [[1, 'Day'], [3, '3 days'], [7, 'Week'], [0, 'Full range']];
 
@@ -63,14 +82,16 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
   const height = (DAY_END - DAY_START) * PX_PER_MIN;
   const hours = [];
   for (let h = Math.ceil(DAY_START / 60); h <= Math.floor(DAY_END / 60); h++) hours.push(h);
-  // 100px keeps a 7-day week on screen at tablet/half-window widths; at 120px
-  // the last day was pushed off the right edge behind a scrollbar.
-  const gridCols = `56px repeat(${days.length}, minmax(100px, 1fr))`;
+  const gridCols = `${GUTTER_PX}px repeat(${days.length}, minmax(${COL_MIN_PX}px, 1fr))`;
 
   const banners = BANNERS.filter((b) => b.from <= range.end && b.to >= range.start);
 
   return (
     <div ref={wrapRef} className={`cal-wrap${ghost ? ' suggesting' : ''}`}>
+      {/* As wide as the grid, not the screen: on a phone the week is wider than
+          the viewport, and a header only one screen wide slid away on sideways
+          scroll, leaving events showing through where it had been. */}
+      <div className="cal-inner" style={{ minWidth: GUTTER_PX + days.length * COL_MIN_PX }}>
       <div className="cal-toolbar">
         <button className="cal-nav" disabled={off === 0} onClick={() => setOffset(Math.max(0, off - n))} aria-label="Earlier days">‹</button>
         <select value={span} onChange={(e) => pickSpan(+e.target.value)} aria-label="Calendar view span">
@@ -82,7 +103,7 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
         </span>
       </div>
       <div className="cal-headrow" style={{ gridTemplateColumns: gridCols }}>
-        <div />
+        <div className="cal-corner" />
         {days.map((d) => {
           const t = fmtDayTiny(d);
           return (
@@ -178,6 +199,7 @@ export default function CalendarView({ range, mode, onSelect, onTravel, ghost })
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

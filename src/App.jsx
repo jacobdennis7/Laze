@@ -15,6 +15,7 @@ import Wordmark from './components/Wordmark.jsx';
 import SuggestTray from './components/SuggestTray.jsx';
 import MeetHereTray from './components/MeetHereTray.jsx';
 import { useGhost } from './lib/useGhost.js';
+import { GHOST } from './lib/flags.js';
 import DayPanel from './components/DayPanel.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import ConflictsPanel from './components/ConflictsPanel.jsx';
@@ -38,7 +39,7 @@ export default function App() {
   const pVersion = useSyncExternalStore(subscribePrefs, prefsVersion);
   const [spotSuggest, setSpotSuggest] = useState(null);
   const [travelBlock, setTravelBlock] = useState(null); // { leg, day }
-  // PROTOTYPE: Suggest as a mode. Recomputed after a sync or settings change.
+  // Suggest as a mode (behind the GHOST switch). Recomputed after a sync or settings change.
   const ghost = useGhost(range, `${store.version}.${pVersion}`);
   // The place currently selected in map search, reported by the map.
   const [mapPlace, setMapPlace] = useState(null);
@@ -235,7 +236,7 @@ export default function App() {
           <button className={view === 'cal' ? 'on' : ''} onClick={() => {
               // With an address selected in map search, switching to the calendar
               // means "how would this fit?" — so bring the place along.
-              if (mapPlace && !ghost.on) ghost.enterHere({ ...mapPlace, type: 'search' });
+              if (GHOST && mapPlace && !ghost.on) ghost.enterHere({ ...mapPlace, type: 'search' });
               setView('cal');
               track('view_toggled', { view: 'cal' });
             }} role="tab" aria-selected={view === 'cal'} aria-label="Calendar view">
@@ -260,19 +261,20 @@ export default function App() {
           <span className={`badge${conflicts.length === 0 ? ' zero' : ''}`}>{conflicts.length}</span>
           <span className="btn-label">Conflicts</span>
         </button>
-        {/* PROTOTYPE: Suggest toggles a mode (times drawn on the calendar/map)
-            instead of opening the pop-up; the pop-up is still reachable from
-            the bar as "Classic". */}
+        {/* Behind the GHOST switch (lib/flags.js): Suggest toggles a mode (times
+            drawn on the calendar/map) instead of opening the pop-up; the pop-up
+            is still reachable from the bar as "List view". */}
         <button
           className={`pill-btn primary${ghost.on ? ' active' : ''}`}
           onClick={() => {
+            if (!GHOST) { setShowSuggest(true); track('suggest_opened'); return; }
             if (ghost.on) { ghost.exit(); return; }
             ghost.enter();
             setView('cal');
             track('suggest_opened', { surface: 'ghost' });
           }}
           aria-label="Suggest times"
-          aria-pressed={ghost.on}
+          aria-pressed={GHOST ? ghost.on : undefined}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.8 2.8M16.2 16.2L19 19M19 5l-2.8 2.8M7.8 16.2L5 19" /></svg>
           <span className="btn-label">Suggest</span>
@@ -374,7 +376,7 @@ export default function App() {
           spot={spotSuggest}
           day={activeDay}
           onClose={() => setSpotSuggest(null)}
-          onSeeCalendar={() => { const place = spotSuggest; setSpotSuggest(null); seeInCalendar(place); }}
+          onSeeCalendar={GHOST ? () => { const place = spotSuggest; setSpotSuggest(null); seeInCalendar(place); } : undefined}
         />
       )}
       {travelBlock && <TravelBlockModal leg={travelBlock.leg} day={travelBlock.day} onClose={() => setTravelBlock(null)} />}
