@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { PX_PER_MIN, yFor } from '../lib/calgrid.js';
-import { MAX_PICKS } from '../lib/useGhost.js';
+import { DAY_START, DAY_END, PX_PER_MIN, yFor } from '../lib/calgrid.js';
 
 // PROTOTYPE — suggested meeting times drawn over one day column.
 //   free time   a quiet green wash; a meeting-sized outline follows the
 //               pointer and a click drops a time exactly there
 //   suggested   the engine's best few times, dashed — one click to take one
 //   picked      solid; removed only via its ✕
+//   blocked     hatched: time that looks empty but isn't offered (flights)
 // A time can never be dropped on top of another, and nothing is ever removed
 // except by its ✕ (here or on its chip in the bar).
 
@@ -27,7 +27,7 @@ function FreeWindow({ win, slots, ghost }) {
   function slotAt(e) {
     if (!open.length) return null;
     const rect = e.currentTarget.getBoundingClientRect();
-    const min = win.startMin + (e.clientY - rect.top) / PX_PER_MIN - 8;
+    const min = win.startMin + (e.clientY - rect.top) / PX_PER_MIN - 6;
     const s = open.reduce((best, x) => (Math.abs(x.startMin - min) < Math.abs(best.startMin - min) ? x : best));
     return Math.abs(s.startMin - min) <= 45 ? s : null;
   }
@@ -43,10 +43,10 @@ function FreeWindow({ win, slots, ghost }) {
     >
       {hover && (
         <span
-          className={`g-outline${ghost.atLimit ? ' full' : ''}`}
+          className="g-outline"
           style={{ top: (hover.startMin - win.startMin) * PX_PER_MIN, height: ghost.cfg.duration * PX_PER_MIN - 2 }}
         >
-          {ghost.atLimit ? `${MAX_PICKS} of ${MAX_PICKS} picked` : <>＋ {hover.short}<Detour s={hover} /></>}
+          ＋ {hover.short}<Detour s={hover} />
         </span>
       )}
     </div>
@@ -58,24 +58,34 @@ export default function GhostLayer({ day, ghost }) {
 
   return (
     <>
+      {ghost.blocked
+        .filter((b) => b.day === day)
+        // only the part that falls inside the hours the grid shows
+        .map((b) => ({ ...b, startMin: Math.max(b.startMin, DAY_START), endMin: Math.min(b.endMin, DAY_END) }))
+        .filter((b) => b.endMin > b.startMin)
+        .map((b) => (
+          <div key={b.key} className="g-blocked" style={block(b.startMin, b.endMin)} title={`${b.label} — not offered`}>
+            {(b.endMin - b.startMin) * PX_PER_MIN >= 26 ? `✈ ${b.label}` : ''}
+          </div>
+        ))}
+
       {ghost.windows
         .filter((w) => w.day === day)
         .map((win) => (
           <FreeWindow key={win.w.s} win={win} slots={daySlots.filter((s) => s.w === win.w)} ghost={ghost} />
         ))}
 
-      {!ghost.atLimit &&
-        ghost.suggested.filter((s) => s.day === day).map((s) => (
-          <button
-            key={s.id}
-            className="g-suggested"
-            style={block(s.startMin, s.endMin)}
-            onClick={() => ghost.toggle(s.id)}
-            title={`Suggested: ${s.label} — click to add`}
-          >
-            {s.short}<Detour s={s} />
-          </button>
-        ))}
+      {ghost.suggested.filter((s) => s.day === day).map((s) => (
+        <button
+          key={s.id}
+          className="g-suggested"
+          style={block(s.startMin, s.endMin)}
+          onClick={() => ghost.toggle(s.id)}
+          title={`Suggested: ${s.label} — click to add`}
+        >
+          {s.short}<Detour s={s} />
+        </button>
+      ))}
 
       {/* Removing takes a deliberate click on the ✕: a stray click on the block
           itself (easy to do while placing a neighbour) must not delete it. */}

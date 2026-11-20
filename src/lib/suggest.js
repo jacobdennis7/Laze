@@ -28,7 +28,10 @@ export function parseMessage(text) {
 
 // Rank free windows by detour cost from the surrounding anchors to the guest's location.
 export function rankWindows({ start, end, them, durationMin = 45, hints = null }) {
-  let windows = freeWindows(start, end, { minMinutes: durationMin + 20 });
+  // A gap qualifies when the meeting fits. (This used to demand 20 spare
+  // minutes on top, which predates the buffer setting and hid real openings
+  // such as a 45-minute gap for a 30-minute meeting.)
+  let windows = freeWindows(start, end, { minMinutes: durationMin });
   let missedAsk = false;
 
   if (hints) {
@@ -120,8 +123,8 @@ export function proposeStart(w, durationMin) {
 
 // Every viable start in a window on the half-hour grid — the window's natural
 // proposal first, the rest chronological. A 3-hour gap is many options, not one.
-export function windowSlots(w, durationMin) {
-  const step = 30 * 60000;
+export function windowSlots(w, durationMin, stepMin = 30) {
+  const step = stepMin * 60000;
   const durMs = durationMin * 60000;
   const proposed = proposeStart(w, durationMin);
   const starts = [];
@@ -135,9 +138,9 @@ export function windowSlots(w, durationMin) {
 // Flatten score-ordered windows into one ranked slot list: every window's best
 // pick first (in window order), then the second picks, and so on — so "top 3"
 // spans the day's gaps instead of drowning in the first big one.
-export function rankSlots(windows, durationMin) {
+export function rankSlots(windows, durationMin, stepMin = 30) {
   return windows
-    .flatMap((w, wi) => windowSlots(w, durationMin).map((ms, ci) => ({ w, ms, ci, wi })))
+    .flatMap((w, wi) => windowSlots(w, durationMin, stepMin).map((ms, ci) => ({ w, ms, ci, wi })))
     .sort((a, b) => a.ci - b.ci || a.wi - b.wi);
 }
 

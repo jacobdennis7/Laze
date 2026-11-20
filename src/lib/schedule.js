@@ -76,6 +76,12 @@ export const departVenue = (ev) => (ev.kind === 'flight' && ev.destGeo ? ev.dest
 // Minutes to be at the airport before departure.
 export const AIRPORT_LEAD_MIN = 90;
 
+// How much time a flight blocks around itself when looking for free time:
+// before wheels-up (the ride plus the airport) and after landing (deplane,
+// bags, car). Shown in suggest mode so the blocked time doesn't look free.
+export const FLIGHT_PRE_MIN = 130;
+export const FLIGHT_POST_MIN = 35;
+
 // Airports worth pinning on a day's map: whichever end of each flight is in
 // the same city as the rest of the day — or, on a day with nothing else, as
 // home. The far end stays off so the map doesn't zoom out to a continent.
@@ -313,8 +319,8 @@ export function freeWindows(start, end, { minMinutes = 45, dayStart = null, dayE
     const busy = evs
       .map((e) => {
         // A flight blocks ~2h10m before wheels-up (airport + ride) and ~35m after landing (deplane, bags, car).
-        const pre = e.kind === 'flight' ? 130 * 60000 : 0;
-        const post = e.kind === 'flight' ? 35 * 60000 : 0;
+        const pre = e.kind === 'flight' ? FLIGHT_PRE_MIN * 60000 : 0;
+        const post = e.kind === 'flight' ? FLIGHT_POST_MIN * 60000 : 0;
         // the user's buffer keeps breathing room on both sides of every meeting
         return { s: toEpoch(e.start) - pre - bufMs, e: toEpoch(e.end) + post + bufMs, ev: e };
       })

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { MAX_PICKS } from '../lib/useGhost.js';
 import { buildDraft } from '../lib/suggest.js';
 import { track } from '../lib/analytics.js';
 import AddressInput from './AddressInput.jsx';
@@ -17,21 +16,12 @@ export default function SuggestTray({ ghost, view, onClassic }) {
   const [edited, setEdited] = useState(null); // user's own edits to the reply
   const [copied, setCopied] = useState(false);
   const [addrKey, setAddrKey] = useState(0); // remounts the address field to clear it
-  const [flash, setFlash] = useState(false);
 
   const { cfg, picked, suggested, hints } = ghost;
   // Until something is picked, the reply offers the dashed suggestions.
   const offered = picked.length ? picked : suggested;
   const offerSig = offered.map((s) => s.id).join(',');
   useEffect(() => setEdited(null), [offerSig, tone, cfg.them]);
-
-  // A click refused at the cap: draw the eye to the reason.
-  useEffect(() => {
-    if (!ghost.nudge) return undefined;
-    setFlash(true);
-    const t = setTimeout(() => setFlash(false), 1400);
-    return () => clearTimeout(t);
-  }, [ghost.nudge]);
 
   const draft = edited ?? buildDraft({ tone, slots: offered, them: cfg.them, cafe: ghost.cafe, missedAsk: ghost.missedAsk });
 
@@ -45,9 +35,7 @@ export default function SuggestTray({ ghost, view, onClassic }) {
   }
 
   let status;
-  if (flash) {
-    status = <span className="g-status-text">{MAX_PICKS} times picked — remove one to add another.</span>;
-  } else if (picked.length) {
+  if (picked.length) {
     status = (
       <>
         {picked.map((s) => (
@@ -56,11 +44,10 @@ export default function SuggestTray({ ghost, view, onClassic }) {
           </button>
         ))}
         <span className="g-status-text">
-          {picked.length} of {MAX_PICKS}
-          {view === 'map'
-            ? ' · add or change times in Calendar view'
-            : `${picked.length < MAX_PICKS ? ' · click green to add another' : ''} · ✕ removes one`}
+          {picked.length} picked
+          {view === 'map' ? ' · add or change times in Calendar view' : ' · click green to add more · ✕ removes one'}
         </span>
+        {picked.length > 1 && <button className="g-link" onClick={ghost.clearPicks}>Clear all</button>}
       </>
     );
   } else if (view === 'map') {
@@ -75,8 +62,8 @@ export default function SuggestTray({ ghost, view, onClassic }) {
   } else {
     status = (
       <span className="g-status-text">
-        Click anywhere green to add a time. Until you do, the reply offers the {suggested.length} dashed
-        suggestion{suggested.length === 1 ? '' : 's'}.
+        Green is when you’re {ghost.rule}. Click it to add as many times as you like — until you do, the
+        reply offers the {suggested.length} dashed suggestion{suggested.length === 1 ? '' : 's'}.
       </span>
     );
   }
@@ -140,7 +127,7 @@ export default function SuggestTray({ ghost, view, onClassic }) {
         </div>
       </div>
 
-      <div className={`g-tray-status${flash ? ' flash' : ''}`} aria-live="polite">{status}</div>
+      <div className="g-tray-status" aria-live="polite">{status}</div>
     </section>
   );
 }

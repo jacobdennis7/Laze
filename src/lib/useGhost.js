@@ -1,28 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { parseMessage, rankWindows, rankSlots, fmtSlotTime, localMinutes, nearestCafe } from './suggest.js';
-import { fmtDayLong, fmtDayShort } from './time.js';
+import { eventsForDay, FLIGHT_PRE_MIN, FLIGHT_POST_MIN } from './schedule.js';
+import { loadSettings } from './store.js';
+import { eachDay, fmtDayLong, fmtDayShort, minutesOfDay } from './time.js';
 
 // PROTOTYPE — Suggest as a mode ("ghost mode"): candidate meeting times are
 // drawn in place on the calendar and map instead of listed in a pop-up.
 // Everything here sits on the same engine the pop-up uses (rankWindows /
 // rankSlots), so working hours, buffers, overrides and message hints apply.
 //
-// One model, three kinds of thing on the calendar:
+// What ends up on the calendar:
 //   windows   — free stretches (a quiet wash: "you can click here")
 //   suggested — the engine's best few times, never overlapping each other
 //               or anything picked; what the reply offers until you pick
-//   picked    — times the user chose (never overlapping, capped, in date order)
+//   picked    — times the user chose (never overlapping, any number, date order)
+//   blocked   — time that looks empty but isn't offered (around a flight),
+//               drawn so the gap in the green explains itself
 
-export const MAX_PICKS = 3;
 const MAX_SUGGESTED = 3;
+// Starts snap to a quarter-hour: on a half-hour grid a gap that fits the
+// meeting exactly at :15 or :45 (common once buffers are carved out) offered
+// nothing at all.
+const STEP_MIN = 15;
 // start-of-meeting ranges, minutes from midnight
 const DAYPART = { morning: [8 * 60, 12 * 60], afternoon: [12 * 60, 17 * 60], evening: [17 * 60, 21 * 60] };
+
+function clock(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}${m ? `:${String(m).padStart(2, '0')}` : ''}${h >= 12 ? 'pm' : 'am'}`;
+}
 
 export function useGhost(range, dataVersion) {
   const [on, setOn] = useState(false);
   const [cfg, setCfg] = useState({ duration: 45, them: null, msg: '' });
   const [picks, setPicks] = useState([]); // slot ids (start time, epoch ms)
-  const [nudge, setNudge] = useState(0); // bumps when a click is refused at the cap
 
   // A pick is a specific time of a specific length in a specific range —
   // change either and the old picks no longer mean what the user chose.
@@ -37,7 +49,7 @@ export function useGhost(range, dataVersion) {
     const durMs = cfg.duration * 60000;
 
     // Every viable start, best first, with where it sits on the calendar grid.
-    let slots = rankSlots(windows, cfg.duration).map(({ w, ms }) => {
+    let slots = rankSlots(windows, cfg.duration, STEP_MIN).map(({ w, ms }) => {
       const startMin = localMinutes(ms, w.offset);
       const from = fmtSlotTime(ms, w.offset);
       const to = fmtSlotTime(ms + durMs, w.offset);
@@ -80,8 +92,27 @@ export function useGhost(range, dataVersion) {
       })
       .filter(Boolean);
 
+    // Time a flight blocks around itself. It isn't on the calendar as an
+    // event, so without this the missing green there looks like a mistake.
+    const blocked = [];
+    for (const day of eachDay(range.start, range.end)) {
+      for (const e of eventsForDay(day)) {
+        if (e.kind !== 'flight' || e.skipped) continue;
+        const s = minutesOfDay(e.start), en = minutesOfDay(e.end);
+        blocked.push({ key: `${e.id}-pre`, day, startMin: s - FLIGHT_PRE_MIN, endMin: s, label: 'Getting to the airport' });
+        // a flight landing after midnight has no same-day "after"
+        if (en > s) blocked.push({ key: `${e.id}-post`, day, startMin: en, endMin: en + FLIGHT_POST_MIN, label: 'Leaving the airport' });
+      }
+    }
+
+    // The rule behind the green, in the user's own settings, for the bar.
+    const st = loadSettings();
+    const rule = `free between ${clock(st.workStart)} and ${clock(st.workEnd)}${
+      st.bufferMin ? `, with ${st.bufferMin} min kept clear around meetings` : ''
+    }`;
+
     const cafe = nearestCafe(cfg.them, cfg.them && cfg.them.lat > 39 ? 'NYC' : 'SF');
-    return { windows: wins, slots, missedAsk, hints, cafe };
+    return { windows: wins, slots, blocked, rule, missedAsk, hints, cafe };
     // dataVersion re-runs this after a sync or a settings/override change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, cfg, range, dataVersion]);
@@ -92,7 +123,6 @@ export function useGhost(range, dataVersion) {
   const slots = model?.slots || [];
   const picked = slots.filter((s) => picks.includes(s.id)).sort((a, b) => a.ms - b.ms);
   const overlapsPick = (s) => picked.some((p) => p.id !== s.id && clash(p, s));
-  const atLimit = picked.length >= MAX_PICKS;
 
   const suggested = [];
   for (const s of slots) {
@@ -109,11 +139,7 @@ export function useGhost(range, dataVersion) {
     }
     const s = slots.find((x) => x.id === id);
     if (!s || overlapsPick(s)) return; // never stack one time on another
-    if (atLimit) {
-      setNudge((n) => n + 1); // say so, rather than silently dropping an earlier pick
-      return;
-    }
-    // drop ids that no longer exist so they can't count toward the cap
+    // drop ids that no longer exist while adding
     setPicks((p) => [...p.filter((x) => slots.some((y) => y.id === x)), id]);
   }
 
@@ -126,12 +152,13 @@ export function useGhost(range, dataVersion) {
     picks,
     picked,
     suggested,
-    atLimit,
-    nudge,
     overlapsPick,
     toggle,
+    clearPicks: () => setPicks([]),
     windows: model?.windows || [],
     slots,
+    blocked: model?.blocked || [],
+    rule: model?.rule || '',
     missedAsk: model?.missedAsk || false,
     hints: model?.hints || null,
     cafe: model?.cafe || null,
